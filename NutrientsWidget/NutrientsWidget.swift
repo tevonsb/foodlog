@@ -1,5 +1,6 @@
 import WidgetKit
 import SwiftUI
+import AppIntents
 
 // MARK: - Timeline Provider
 
@@ -51,11 +52,12 @@ struct SmallWidgetView: View {
     let entry: NutrientsEntry
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 5) {
             WidgetNutrientRow(label: "Calories", value: entry.nutrients.calories, unit: "", color: .orange)
             WidgetNutrientRow(label: "Protein", value: entry.nutrients.protein, unit: "g", color: .indigo)
-            WidgetNutrientRow(label: "Carbs", value: entry.nutrients.carbs, unit: "g", color: .teal)
-            WidgetNutrientRow(label: "Fat", value: entry.nutrients.fat, unit: "g", color: .purple)
+            WidgetNutrientRow(label: "Fiber", value: entry.nutrients.fiber, unit: "g", color: .green)
+            WidgetNutrientRow(label: "Water", value: entry.nutrients.waterOz, unit: "oz", color: .cyan)
+            WidgetNutrientRow(label: "Coffee", value: Double(entry.nutrients.coffees), unit: "", color: .brown)
         }
         .padding(16)
         .containerBackground(.fill.tertiary, for: .widget)
@@ -73,12 +75,32 @@ struct MediumWidgetView: View {
             HStack(spacing: 8) {
                 NutrientPill(label: "Cal", value: entry.nutrients.calories, unit: "", color: .orange)
                 NutrientPill(label: "Protein", value: entry.nutrients.protein, unit: "g", color: .indigo)
-                NutrientPill(label: "Carbs", value: entry.nutrients.carbs, unit: "g", color: .teal)
-                NutrientPill(label: "Fat", value: entry.nutrients.fat, unit: "g", color: .purple)
+                NutrientPill(label: "Fiber", value: entry.nutrients.fiber, unit: "g", color: .green)
             }
             HStack(spacing: 8) {
-                NutrientPill(label: "Fiber", value: entry.nutrients.fiber, unit: "g", color: .green)
-                NutrientPill(label: "Sugar", value: entry.nutrients.sugar, unit: "g", color: .pink)
+                NutrientPill(label: "Water", value: entry.nutrients.waterOz, unit: "oz", color: .cyan)
+
+                Button(intent: LogWaterIntent()) {
+                    Image(systemName: "drop.fill")
+                        .font(.title3.bold())
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.cyan)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+
+                NutrientPill(label: "Coffee", value: Double(entry.nutrients.coffees), unit: "", color: .brown)
+
+                Button(intent: LogCoffeeIntent()) {
+                    Image(systemName: "cup.and.saucer.fill")
+                        .font(.title3.bold())
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.brown)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
 
                 Link(destination: URL(string: "nutritiousai://add-food")!) {
                     Image(systemName: "plus")

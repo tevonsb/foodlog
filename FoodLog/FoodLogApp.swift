@@ -7,15 +7,20 @@ struct FoodLogApp: App {
 
     var body: some Scene {
         WindowGroup {
-            FoodLogView(deepLinkAddFood: $deepLinkAddFood)
-                .task {
-                    try? await HealthKitService.shared.requestAuthorization()
+            FoodLogView(
+                deepLinkAddFood: $deepLinkAddFood
+            )
+            .task {
+                try? await HealthKitService.shared.requestAuthorization()
+            }
+            .onOpenURL { url in
+                switch url.host {
+                case "add-food":
+                    deepLinkAddFood = true
+                default:
+                    break
                 }
-                .onOpenURL { url in
-                    if url.host == "add-food" {
-                        deepLinkAddFood = true
-                    }
-                }
+            }
         }
         .modelContainer(for: FoodEntry.self)
     }

@@ -28,6 +28,10 @@
 		F69B69B1956835132371C36C /* NutrientData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB443A8CAB3DD8EA56767CD6 /* NutrientData.swift */; };
 		FCC338EE77EF52A9BA356807 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90325F2D5E6AE6F27877B050 /* SettingsView.swift */; };
 		FD205A2F7FCE7635B1FCC43F /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 546057AAB58C8476D2470618 /* KeychainService.swift */; };
+		B2C3D4E5F607B8C9D0E1F2A1 /* BeverageEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F607B8C9D0E1F2 /* BeverageEntry.swift */; };
+		C3D4E5F607B8C9D0E1F2A1B2 /* BeverageEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F607B8C9D0E1F2 /* BeverageEntry.swift */; };
+		E5F6A7B809D0E1F2A1B2C3D4 /* BeverageIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B809D0E1F2A1B2C3 /* BeverageIntents.swift */; };
+		F6A7B809D0E1F2A1B2C3D4E5 /* BeverageIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B809D0E1F2A1B2C3 /* BeverageIntents.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -79,6 +83,8 @@
 		E481DB6AA55DDB788F2549E4 /* MacroRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacroRow.swift; sourceTree = "<group>"; };
 		EABD568EEBF11F173DDE2099 /* ClaudeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeService.swift; sourceTree = "<group>"; };
 		FB443A8CAB3DD8EA56767CD6 /* NutrientData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutrientData.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F607B8C9D0E1F2 /* BeverageEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeverageEntry.swift; sourceTree = "<group>"; };
+		D4E5F6A7B809D0E1F2A1B2C3 /* BeverageIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeverageIntents.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -190,6 +196,8 @@
 		F3C25220D257B1189ACF1CAE /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				A1B2C3D4E5F607B8C9D0E1F2 /* BeverageEntry.swift */,
+				D4E5F6A7B809D0E1F2A1B2C3 /* BeverageIntents.swift */,
 				7CC3868ECAFEC90D555AEFB2 /* TodayNutrients.swift */,
 			);
 			path = Shared;
@@ -291,6 +299,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				7EE48E5078DC0C66D5293CF2 /* AddFoodView.swift in Sources */,
+				B2C3D4E5F607B8C9D0E1F2A1 /* BeverageEntry.swift in Sources */,
+				E5F6A7B809D0E1F2A1B2C3D4 /* BeverageIntents.swift in Sources */,
 				952A9123778113E6F5E41666 /* CameraView.swift in Sources */,
 				EFB13BCE2283BFBD5C31FB09 /* ClaudeService.swift in Sources */,
 				5565A82CF9761AB2CC75FAAC /* FNDDSDatabase.swift in Sources */,
@@ -312,6 +322,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C3D4E5F607B8C9D0E1F2A1B2 /* BeverageEntry.swift in Sources */,
+				F6A7B809D0E1F2A1B2C3D4E5 /* BeverageIntents.swift in Sources */,
 				9CC227081C8B9E950D580D96 /* NutrientsWidget.swift in Sources */,
 				0FFEB0D26432DC69785AC435 /* TodayNutrients.swift in Sources */,
 			);

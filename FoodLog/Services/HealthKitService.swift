@@ -8,9 +8,16 @@ final class HealthKitService {
     private static let mealIDKey = "FoodLogMealID"
 
     private var allDietaryTypes: Set<HKSampleType> {
-        Set(NutrientData.allMappings.compactMap {
+        var types = Set(NutrientData.allMappings.compactMap {
             HKQuantityType.quantityType(forIdentifier: $0.identifier)
         })
+        if let water = HKQuantityType.quantityType(forIdentifier: .dietaryWater) {
+            types.insert(water)
+        }
+        if let caffeine = HKQuantityType.quantityType(forIdentifier: .dietaryCaffeine) {
+            types.insert(caffeine)
+        }
+        return types
     }
 
     func requestAuthorization() async throws {
@@ -102,5 +109,46 @@ final class HealthKitService {
             store.execute(query)
         }
         if !correlations.isEmpty { try await store.delete(correlations) }
+    }
+
+    /// Log water intake in fluid ounces. Saves to HealthKit as mL. Returns sample UUID.
+    func logWater(oz: Double) async throws -> String? {
+        guard let waterType = HKQuantityType.quantityType(forIdentifier: .dietaryWater) else { return nil }
+        let mL = oz * 29.5735
+        let quantity = HKQuantity(unit: .literUnit(with: .milli), doubleValue: mL)
+        let sample = HKQuantitySample(type: waterType, quantity: quantity, start: .now, end: .now)
+        try await store.save(sample)
+        return sample.uuid.uuidString
+    }
+
+    /// Log one coffee (~95mg caffeine) to HealthKit. Returns sample UUID.
+    func logCoffee() async throws -> String? {
+        guard let caffeineType = HKQuantityType.quantityType(forIdentifier: .dietaryCaffeine) else { return nil }
+        let quantity = HKQuantity(unit: .gramUnit(with: .milli), doubleValue: 95)
+        let sample = HKQuantitySample(type: caffeineType, quantity: quantity, start: .now, end: .now)
+        try await store.save(sample)
+        return sample.uuid.uuidString
+    }
+
+    /// Delete a single beverage HealthKit sample by UUID.
+    func deleteBeverageSample(uuid: String, type: BeverageType) async throws {
+        guard let sampleUUID = UUID(uuidString: uuid) else { return }
+        let predicate = HKQuery.predicateForObjects(with: Set([sampleUUID]))
+        let quantityType: HKQuantityType?
+        switch type {
+        case .water:
+            quantityType = HKQuantityType.quantityType(forIdentifier: .dietaryWater)
+        case .coffee:
+            quantityType = HKQuantityType.quantityType(forIdentifier: .dietaryCaffeine)
+        }
+        guard let sampleType = quantityType else { return }
+        let samples = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[HKSample], Error>) in
+            let query = HKSampleQuery(sampleType: sampleType, predicate: predicate, limit: 1, sortDescriptors: nil) { _, results, error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume(returning: results ?? []) }
+            }
+            store.execute(query)
+        }
+        if !samples.isEmpty { try await store.delete(samples) }
     }
 }

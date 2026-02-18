@@ -277,10 +277,9 @@ struct AddFoodView: View {
         TodayNutrients(
             calories: n.calories ?? 0,
             protein: n.protein ?? 0,
-            carbs: n.carbohydrates ?? 0,
-            fat: n.totalFat ?? 0,
             fiber: n.fiber ?? 0,
-            sugar: n.sugar ?? 0,
+            waterOz: BeverageStore.todayWaterOz(),
+            coffees: BeverageStore.todayCoffeeCount(),
             lastUpdated: .now
         ).save()
         WidgetCenter.shared.reloadAllTimelines()

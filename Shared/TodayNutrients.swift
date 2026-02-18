@@ -3,18 +3,17 @@ import Foundation
 struct TodayNutrients: Codable {
     let calories: Double
     let protein: Double
-    let carbs: Double
-    let fat: Double
     let fiber: Double
-    let sugar: Double
+    let waterOz: Double
+    let coffees: Int
     let lastUpdated: Date
 
     static let placeholder = TodayNutrients(
-        calories: 1850, protein: 72, carbs: 210, fat: 65, fiber: 18, sugar: 42, lastUpdated: .now
+        calories: 1850, protein: 72, fiber: 18, waterOz: 64, coffees: 2, lastUpdated: .now
     )
 
     static let empty = TodayNutrients(
-        calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0, lastUpdated: .now
+        calories: 0, protein: 0, fiber: 0, waterOz: 0, coffees: 0, lastUpdated: .now
     )
 
     private static let suiteName = "group.com.tevon.foodlog"
