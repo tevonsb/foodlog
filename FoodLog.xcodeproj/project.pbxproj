@@ -254,10 +254,10 @@
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 					5B4BFE9CEA56C249B4983543 = {
-						DevelopmentTeam = "";
+						DevelopmentTeam = C8579683ZP;
 					};
 					5E0D7AFDF172F9F9EEA0F304 = {
-						DevelopmentTeam = "";
+						DevelopmentTeam = C8579683ZP;
 					};
 				};
 			};
@@ -375,6 +375,7 @@
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tevon.foodlog.NutrientsWidget;
 				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -394,6 +395,7 @@
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tevon.foodlog.NutrientsWidget;
 				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
