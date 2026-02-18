@@ -50,7 +50,7 @@ final class FNDDSDatabase: Sendable {
             .joined(separator: " ")
     }
 
-    func searchTopN(query: String, limit: Int = 5) -> [FNDDSSearchResult] {
+    func searchTopN(query: String, limit: Int = 3) -> [FNDDSSearchResult] {
         guard let db else { return [] }
 
         let ftsQuery = sanitizeFTSQuery(query)

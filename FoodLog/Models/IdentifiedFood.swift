@@ -20,6 +20,39 @@ struct AgenticFoodResult: Codable, Sendable {
         case foodCode = "food_code"
         case matchedDescription = "matched_description"
     }
+
+    // Also accept "name" as a fallback key for food_name
+    private enum FallbackKeys: String, CodingKey {
+        case name
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        if let name = try? c.decode(String.self, forKey: .foodName) {
+            foodName = name
+        } else {
+            let fb = try decoder.container(keyedBy: FallbackKeys.self)
+            foodName = try fb.decode(String.self, forKey: .name)
+        }
+        grams = try c.decodeIfPresent(Double.self, forKey: .grams) ?? 0
+        calories = try c.decodeIfPresent(Double.self, forKey: .calories) ?? 0
+        protein = try c.decodeIfPresent(Double.self, forKey: .protein) ?? 0
+        fat = try c.decodeIfPresent(Double.self, forKey: .fat) ?? 0
+        carbs = try c.decodeIfPresent(Double.self, forKey: .carbs) ?? 0
+        fiber = try c.decodeIfPresent(Double.self, forKey: .fiber) ?? 0
+        sugar = try c.decodeIfPresent(Double.self, forKey: .sugar) ?? 0
+        source = try c.decodeIfPresent(String.self, forKey: .source) ?? "estimate"
+        matchedDescription = try c.decodeIfPresent(String.self, forKey: .matchedDescription)
+        // food_code can come as Int or String from Claude
+        if let intCode = try? c.decodeIfPresent(Int.self, forKey: .foodCode) {
+            foodCode = intCode
+        } else if let strCode = try? c.decodeIfPresent(String.self, forKey: .foodCode),
+                  let parsed = Int(strCode) {
+            foodCode = parsed
+        } else {
+            foodCode = nil
+        }
+    }
 }
 
 /// Complete meal analysis from the agentic loop

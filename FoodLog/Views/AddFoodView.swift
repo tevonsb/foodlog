@@ -1,16 +1,18 @@
 import SwiftUI
 import SwiftData
 import UIKit
+import WidgetKit
 
 struct AddFoodView: View {
-    var onSaved: (() -> Void)?
-
     @Environment(\.modelContext) private var modelContext
     @State private var mealText = ""
     @State private var isLogging = false
     @State private var errorMessage: String?
     @State private var showCamera = false
     @State private var capturedImageData: Data?
+    @State private var submittedText: String?
+    @State private var submittedImageData: Data?
+    @State private var completedEntry: FoodEntry?
 
     private var canLog: Bool {
         (!mealText.isEmpty || capturedImageData != nil) && !isLogging
@@ -18,9 +20,9 @@ struct AddFoodView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Scrollable content area
             ScrollView {
                 VStack(spacing: 16) {
+                    // Photo preview (before sending)
                     if let imageData = capturedImageData, let uiImage = UIImage(data: imageData) {
                         ZStack(alignment: .topTrailing) {
                             Image(uiImage: uiImage)
@@ -42,16 +44,57 @@ struct AddFoodView: View {
                         .padding(.horizontal)
                     }
 
+                    // Submitted message bubble (while loading or after completion)
+                    if submittedText != nil || submittedImageData != nil {
+                        VStack(alignment: .trailing, spacing: 8) {
+                            if let imgData = submittedImageData, let uiImage = UIImage(data: imgData) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(maxHeight: 200)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                            }
+                            if let text = submittedText, !text.isEmpty {
+                                Text(text)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 10)
+                                    .background(Color.accentColor)
+                                    .foregroundStyle(.white)
+                                    .clipShape(RoundedRectangle(cornerRadius: 18))
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .padding(.horizontal)
+                    }
+
+                    // Loading indicator
                     if isLogging {
-                        VStack(spacing: 8) {
+                        HStack(spacing: 6) {
                             ProgressView()
-                            Text("Analyzing your meal...")
+                                .controlSize(.small)
+                            Text("Searching nutrition database...")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
-                        .padding(.top, 40)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal)
                     }
 
+                    // Result card after completion
+                    if let entry = completedEntry {
+                        NavigationLink {
+                            MealDetailView(entry: entry)
+                        } label: {
+                            MealRow(entry: entry)
+                                .padding(12)
+                                .background(Color(.secondarySystemBackground))
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal)
+                    }
+
+                    // Error message
                     if let errorMessage {
                         Text(errorMessage)
                             .font(.caption)
@@ -59,7 +102,8 @@ struct AddFoodView: View {
                             .padding(.horizontal)
                     }
 
-                    if capturedImageData == nil && !isLogging {
+                    // Empty state
+                    if capturedImageData == nil && !isLogging && completedEntry == nil && submittedText == nil {
                         VStack(spacing: 12) {
                             Image(systemName: "camera.fill")
                                 .font(.system(size: 48))
@@ -75,7 +119,7 @@ struct AddFoodView: View {
                 .padding(.top)
             }
 
-            // Bottom input bar (messaging style)
+            // Bottom input bar
             Divider()
             HStack(spacing: 12) {
                 Button {
@@ -116,19 +160,32 @@ struct AddFoodView: View {
     }
 
     private func logMeal() async {
+        let currentText = mealText
+        let currentImageData = capturedImageData
+
+        // Clear input immediately, show as sent bubble
+        mealText = ""
+        capturedImageData = nil
+        submittedText = currentText
+        submittedImageData = currentImageData
+        completedEntry = nil
         isLogging = true
         errorMessage = nil
 
         do {
             let analysis: AgenticMealAnalysis
-            if let imageData = capturedImageData {
+            if let imageData = currentImageData {
                 analysis = try await ClaudeService.identifyFoods(imageData: imageData)
             } else {
-                analysis = try await ClaudeService.identifyFoods(description: mealText)
+                analysis = try await ClaudeService.identifyFoods(description: currentText)
             }
 
             guard !analysis.foods.isEmpty else {
                 errorMessage = "Could not identify any foods."
+                mealText = currentText
+                capturedImageData = currentImageData
+                submittedText = nil
+                submittedImageData = nil
                 isLogging = false
                 return
             }
@@ -171,8 +228,8 @@ struct AddFoodView: View {
 
             let entry = FoodEntry(
                 timestamp: mealDate,
-                mealDescription: mealText.isEmpty ? "Meal from photo" : mealText,
-                photoData: capturedImageData,
+                mealDescription: currentText.isEmpty ? "Meal from photo" : currentText,
+                photoData: currentImageData,
                 nutrients: totalNutrients,
                 foods: loggedFoods,
                 healthKitSampleUUIDs: sampleUUIDs
@@ -180,9 +237,14 @@ struct AddFoodView: View {
             modelContext.insert(entry)
             try modelContext.save()
 
-            onSaved?()
+            completedEntry = entry
+            syncWidgetData()
         } catch {
             errorMessage = error.localizedDescription
+            mealText = currentText
+            capturedImageData = currentImageData
+            submittedText = nil
+            submittedImageData = nil
         }
 
         isLogging = false
@@ -208,15 +270,19 @@ struct AddFoodView: View {
         return formatter.date(from: mealTimeString)
     }
 
-    private func resizeImage(_ image: UIImage, maxDimension: CGFloat) -> UIImage? {
-        let size = image.size
-        let maxSide = max(size.width, size.height)
-        guard maxSide > maxDimension else { return image }
-        let scale = maxDimension / maxSide
-        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
-        let renderer = UIGraphicsImageRenderer(size: newSize)
-        return renderer.image { _ in
-            image.draw(in: CGRect(origin: .zero, size: newSize))
-        }
+    private func syncWidgetData() {
+        let entries = (try? modelContext.fetch(FetchDescriptor<FoodEntry>())) ?? []
+        let todayEntries = entries.filter { Calendar.current.isDateInToday($0.timestamp) }
+        let n = NutrientData.combined(todayEntries.map(\.nutrients))
+        TodayNutrients(
+            calories: n.calories ?? 0,
+            protein: n.protein ?? 0,
+            carbs: n.carbohydrates ?? 0,
+            fat: n.totalFat ?? 0,
+            fiber: n.fiber ?? 0,
+            sugar: n.sugar ?? 0,
+            lastUpdated: .now
+        ).save()
+        WidgetCenter.shared.reloadAllTimelines()
     }
 }

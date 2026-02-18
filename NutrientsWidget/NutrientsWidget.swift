@@ -51,23 +51,13 @@ struct SmallWidgetView: View {
     let entry: NutrientsEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Image(systemName: "leaf.fill")
-                    .foregroundStyle(.green)
-                Text("Today")
-                    .font(.headline)
-            }
-
-            Spacer(minLength: 2)
-
-            VStack(spacing: 4) {
-                WidgetNutrientRow(label: "Calories", value: entry.nutrients.calories, unit: "", color: .orange)
-                WidgetNutrientRow(label: "Protein", value: entry.nutrients.protein, unit: "g", color: .red)
-                WidgetNutrientRow(label: "Carbs", value: entry.nutrients.carbs, unit: "g", color: .blue)
-                WidgetNutrientRow(label: "Fat", value: entry.nutrients.fat, unit: "g", color: .yellow)
-            }
+        VStack(spacing: 6) {
+            WidgetNutrientRow(label: "Calories", value: entry.nutrients.calories, unit: "", color: .orange)
+            WidgetNutrientRow(label: "Protein", value: entry.nutrients.protein, unit: "g", color: .indigo)
+            WidgetNutrientRow(label: "Carbs", value: entry.nutrients.carbs, unit: "g", color: .teal)
+            WidgetNutrientRow(label: "Fat", value: entry.nutrients.fat, unit: "g", color: .purple)
         }
+        .padding(16)
         .containerBackground(.fill.tertiary, for: .widget)
         .widgetURL(URL(string: "nutritiousai://add-food"))
     }
@@ -78,30 +68,29 @@ struct SmallWidgetView: View {
 struct MediumWidgetView: View {
     let entry: NutrientsEntry
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 4)
-
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 8) {
-            NutrientPill(label: "Cal", value: entry.nutrients.calories, unit: "", color: .orange)
-            NutrientPill(label: "Protein", value: entry.nutrients.protein, unit: "g", color: .red)
-            NutrientPill(label: "Carbs", value: entry.nutrients.carbs, unit: "g", color: .blue)
-            NutrientPill(label: "Fat", value: entry.nutrients.fat, unit: "g", color: .yellow)
-            NutrientPill(label: "Fiber", value: entry.nutrients.fiber, unit: "g", color: .green)
-            NutrientPill(label: "Sugar", value: entry.nutrients.sugar, unit: "g", color: .pink)
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                NutrientPill(label: "Cal", value: entry.nutrients.calories, unit: "", color: .orange)
+                NutrientPill(label: "Protein", value: entry.nutrients.protein, unit: "g", color: .indigo)
+                NutrientPill(label: "Carbs", value: entry.nutrients.carbs, unit: "g", color: .teal)
+                NutrientPill(label: "Fat", value: entry.nutrients.fat, unit: "g", color: .purple)
+            }
+            HStack(spacing: 8) {
+                NutrientPill(label: "Fiber", value: entry.nutrients.fiber, unit: "g", color: .green)
+                NutrientPill(label: "Sugar", value: entry.nutrients.sugar, unit: "g", color: .pink)
 
-            Link(destination: URL(string: "nutritiousai://add-food")!) {
-                VStack(spacing: 2) {
+                Link(destination: URL(string: "nutritiousai://add-food")!) {
                     Image(systemName: "plus")
                         .font(.title3.bold())
-                    Text("Log")
-                        .font(.system(size: 10))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.green)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.green)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
         }
+        .padding(16)
         .containerBackground(.fill.tertiary, for: .widget)
     }
 }
@@ -139,13 +128,12 @@ struct NutrientPill: View {
         VStack(spacing: 2) {
             Text("\(Int(value))\(unit)")
                 .font(.subheadline.bold())
+                .foregroundStyle(color)
             Text(label)
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(color.opacity(0.15))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
 
@@ -162,5 +150,6 @@ struct NutrientsWidgetMain: Widget {
         .configurationDisplayName("Nutritious AI")
         .description("Track your daily nutrients at a glance.")
         .supportedFamilies([.systemSmall, .systemMedium])
+        .contentMarginsDisabled()
     }
 }

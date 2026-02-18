@@ -19,7 +19,7 @@ struct ClaudeService {
 
     private static let searchToolDefinition: [String: Any] = [
         "name": "search_food_database",
-        "description": "Search the USDA FNDDS food database. Returns top 5 matches with macros per 100g and available portion sizes. Use this to find nutrition data for specific foods.",
+        "description": "Search the USDA FNDDS food database. Returns top 3 matches with macros per 100g and available portion sizes. Use this to find nutrition data for specific foods.",
         "input_schema": [
             "type": "object",
             "properties": [
@@ -148,13 +148,18 @@ struct ClaudeService {
         """
     }
 
+    // MARK: - Model selection
+
+    private static let haikuModel = "claude-haiku-4-5-20251001"
+    private static let sonnetModel = "claude-sonnet-4-6"
+
     // MARK: - Public API
 
     static func identifyFoods(description: String) async throws -> AgenticMealAnalysis {
         let messages: [[String: Any]] = [
             ["role": "user", "content": "Identify the foods and their nutrition in this meal: \(description)"]
         ]
-        return try await runAgenticLoop(messages: messages, system: agenticSystemPrompt)
+        return try await runAgenticLoop(messages: messages, system: agenticSystemPrompt, model: haikuModel)
     }
 
     static func identifyFoods(imageData: Data) async throws -> AgenticMealAnalysis {
@@ -168,7 +173,8 @@ struct ClaudeService {
                 ]
             ]
         ]
-        return try await runAgenticLoop(messages: messages, system: agenticSystemPrompt)
+        // Use Sonnet for images — better at visual food identification
+        return try await runAgenticLoop(messages: messages, system: agenticSystemPrompt, model: sonnetModel)
     }
 
     static func adjustMeal(currentFoods: [LoggedFood], adjustment: String) async throws -> AgenticMealAnalysis {
@@ -184,24 +190,26 @@ struct ClaudeService {
             Adjustment: \(adjustment)
             """]
         ]
-        return try await runAgenticLoop(messages: messages, system: agenticAdjustmentPrompt)
+        return try await runAgenticLoop(messages: messages, system: agenticAdjustmentPrompt, model: haikuModel)
     }
 
     // MARK: - Agentic loop
 
-    private static func runAgenticLoop(messages: [[String: Any]], system: String) async throws -> AgenticMealAnalysis {
+    private static func runAgenticLoop(messages: [[String: Any]], system: String, model: String) async throws -> AgenticMealAnalysis {
         var conversationMessages = messages
         let maxIterations = 4
 
-        for _ in 0..<maxIterations {
+        for iteration in 0..<maxIterations {
             let (contentBlocks, stopReason) = try await callClaudeAPI(
                 messages: conversationMessages,
                 system: system,
-                tools: [searchToolDefinition]
+                tools: [searchToolDefinition],
+                model: model
             )
 
+            print("ClaudeService: iteration=\(iteration) stopReason=\(stopReason) blocks=\(contentBlocks.count)")
+
             if stopReason == "tool_use" {
-                // Extract tool calls and text from response
                 var assistantContent: [[String: Any]] = []
                 var toolResults: [[String: Any]] = []
 
@@ -229,22 +237,28 @@ struct ClaudeService {
                     }
                 }
 
-                // Append assistant message with tool_use blocks
                 conversationMessages.append(["role": "assistant", "content": assistantContent])
-                // Append user message with tool_results
                 conversationMessages.append(["role": "user", "content": toolResults])
             } else {
-                // end_turn — extract the final text response
+                // end_turn or max_tokens — extract whatever text we have
                 let textContent = contentBlocks
                     .compactMap { $0["text"] as? String }
                     .joined()
+
+                if stopReason == "max_tokens" {
+                    print("ClaudeService: WARNING max_tokens hit, text may be truncated (\(textContent.count) chars)")
+                }
+
+                if textContent.isEmpty {
+                    print("ClaudeService: empty text content from API")
+                    throw ClaudeError.apiError("Claude returned an empty response. Please try again.")
+                }
 
                 return try parseAgenticResponse(text: textContent)
             }
         }
 
-        // Max iterations reached — try to parse whatever we have
-        throw ClaudeError.invalidResponse
+        throw ClaudeError.apiError("Analysis took too many steps. Please try a simpler description.")
     }
 
     // MARK: - Tool execution
@@ -295,14 +309,15 @@ struct ClaudeService {
     private static func callClaudeAPI(
         messages: [[String: Any]],
         system: String,
-        tools: [[String: Any]]
+        tools: [[String: Any]],
+        model: String
     ) async throws -> (contentBlocks: [[String: Any]], stopReason: String) {
         guard let apiKey = KeychainService.getAPIKey(), !apiKey.isEmpty else {
             throw ClaudeError.noAPIKey
         }
 
         var body: [String: Any] = [
-            "model": "claude-sonnet-4-20250514",
+            "model": model,
             "max_tokens": 4096,
             "system": system,
             "messages": messages
@@ -343,30 +358,86 @@ struct ClaudeService {
     // MARK: - Response parsing
 
     private static func parseAgenticResponse(text: String) throws -> AgenticMealAnalysis {
-        // Try parsing as AgenticMealAnalysis object
-        if let objectRange = text.range(of: "\\{\\s*\"foods\"\\s*:\\s*\\[", options: .regularExpression) {
-            let startIndex = objectRange.lowerBound
-            let substring = String(text[startIndex...])
-            if let jsonData = substring.data(using: .utf8) {
-                if let analysis = try? JSONDecoder().decode(AgenticMealAnalysis.self, from: jsonData) {
-                    return analysis
+        // Strip markdown code fences if present
+        var cleaned = text
+        if let fenceRange = cleaned.range(of: "```(?:json)?\\s*", options: .regularExpression) {
+            cleaned = String(cleaned[fenceRange.upperBound...])
+            if let endFence = cleaned.range(of: "```", options: .backwards) {
+                cleaned = String(cleaned[..<endFence.lowerBound])
+            }
+        }
+        cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Try balanced-brace extraction from the cleaned text
+        if let objectRange = cleaned.range(of: "\\{\\s*\"foods\"\\s*:\\s*\\[", options: .regularExpression) {
+            let substring = String(cleaned[objectRange.lowerBound...])
+            if let extracted = extractJSON(from: substring),
+               let data = extracted.data(using: .utf8) {
+                do {
+                    return try JSONDecoder().decode(AgenticMealAnalysis.self, from: data)
+                } catch {
+                    print("ClaudeService: JSON decode error: \(error)")
+                    print("ClaudeService: Extracted JSON (\(extracted.count) chars): \(extracted.prefix(800))")
                 }
-                // Try finding the matching closing brace
-                if let extracted = extractJSON(from: substring),
-                   let extractedData = extracted.data(using: .utf8),
-                   let analysis = try? JSONDecoder().decode(AgenticMealAnalysis.self, from: extractedData) {
+            } else {
+                // extractJSON failed — JSON may be truncated. Try to repair by closing brackets.
+                print("ClaudeService: balanced extraction failed, attempting truncation repair")
+                if let repaired = repairTruncatedJSON(substring),
+                   let data = repaired.data(using: .utf8),
+                   let analysis = try? JSONDecoder().decode(AgenticMealAnalysis.self, from: data) {
+                    print("ClaudeService: truncation repair succeeded")
                     return analysis
                 }
             }
         }
 
-        // Fallback: try the entire text
-        if let textData = text.data(using: .utf8),
-           let analysis = try? JSONDecoder().decode(AgenticMealAnalysis.self, from: textData) {
-            return analysis
+        // Fallback: try the entire cleaned text
+        if let textData = cleaned.data(using: .utf8) {
+            do {
+                return try JSONDecoder().decode(AgenticMealAnalysis.self, from: textData)
+            } catch {
+                print("ClaudeService: Fallback decode error: \(error)")
+            }
         }
 
-        throw ClaudeError.invalidResponse
+        print("ClaudeService: Could not parse response text (\(text.count) chars): \(text.prefix(800))")
+        throw ClaudeError.apiError("Could not parse the nutrition response. Please try again.")
+    }
+
+    /// Attempt to repair truncated JSON by finding the last complete food object
+    private static func repairTruncatedJSON(_ text: String) -> String? {
+        // Find the last complete "}" that could end a food object inside the foods array
+        // Strategy: find "}," or "}" patterns that end a food object, then close the array and outer object
+        guard let arrayStart = text.range(of: "[", options: .literal) else { return nil }
+
+        let afterArray = String(text[arrayStart.lowerBound...])
+        var lastGoodEnd: String.Index?
+        var depth = 0
+        var inString = false
+        var escape = false
+        var objectCount = 0
+
+        for i in afterArray.indices {
+            let c = afterArray[i]
+            if escape { escape = false; continue }
+            if c == "\\" && inString { escape = true; continue }
+            if c == "\"" { inString.toggle(); continue }
+            if inString { continue }
+
+            if c == "[" || c == "{" { depth += 1 }
+            if c == "]" || c == "}" {
+                depth -= 1
+                if depth == 1 { // Just closed a food object (depth 1 = inside the array)
+                    objectCount += 1
+                    lastGoodEnd = afterArray.index(after: i)
+                }
+                if depth == 0 { return nil } // Fully balanced — shouldn't need repair
+            }
+        }
+
+        guard objectCount > 0, let end = lastGoodEnd else { return nil }
+        let partial = String(text[text.startIndex..<text.index(text.startIndex, offsetBy: afterArray.distance(from: afterArray.startIndex, to: end))])
+        return partial + "]}"
     }
 
     /// Extract a balanced JSON object from a string starting with '{'

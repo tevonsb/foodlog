@@ -82,10 +82,7 @@ struct FoodLogView: View {
                 MealDetailView(entry: entry)
             }
             .navigationDestination(isPresented: $showAddFood) {
-                AddFoodView(onSaved: {
-                    showAddFood = false
-                    syncWidgetData()
-                })
+                AddFoodView()
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -108,6 +105,9 @@ struct FoodLogView: View {
             }
         }
         .onAppear {
+            syncWidgetData()
+        }
+        .onChange(of: entries.count) {
             syncWidgetData()
         }
         .onChange(of: deepLinkAddFood) { _, newValue in
@@ -160,7 +160,7 @@ private struct SummaryItem: View {
     }
 }
 
-private struct MealRow: View {
+struct MealRow: View {
     let entry: FoodEntry
 
     var body: some View {
