@@ -347,7 +347,7 @@
 				CODE_SIGN_ENTITLEMENTS = FoodLog.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = C8579683ZP;
 				INFOPLIST_FILE = FoodLog/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -365,7 +365,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = NutrientsWidget/NutrientsWidget.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = C8579683ZP;
 				INFOPLIST_FILE = NutrientsWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -384,7 +384,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = NutrientsWidget/NutrientsWidget.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = C8579683ZP;
 				INFOPLIST_FILE = NutrientsWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -405,7 +405,7 @@
 				CODE_SIGN_ENTITLEMENTS = FoodLog.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = C8579683ZP;
 				INFOPLIST_FILE = FoodLog/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
