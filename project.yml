@@ -38,7 +38,9 @@ targets:
     settings:
       INFOPLIST_FILE: NutrientsWidget/Info.plist
       CODE_SIGN_ENTITLEMENTS: NutrientsWidget/NutrientsWidget.entitlements
+      CODE_SIGN_STYLE: Automatic
       PRODUCT_BUNDLE_IDENTIFIER: com.tevon.foodlog.NutrientsWidget
       MARKETING_VERSION: "1.0.0"
       CURRENT_PROJECT_VERSION: "1"
       DEVELOPMENT_TEAM: "C8579683ZP"
+      SKIP_INSTALL: YES

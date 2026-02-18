@@ -364,6 +364,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = NutrientsWidget/NutrientsWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = C8579683ZP;
 				INFOPLIST_FILE = NutrientsWidget/Info.plist;
@@ -384,6 +385,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = NutrientsWidget/NutrientsWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = C8579683ZP;
 				INFOPLIST_FILE = NutrientsWidget/Info.plist;
