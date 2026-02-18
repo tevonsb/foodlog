@@ -1,5 +1,4 @@
 import AppIntents
-import HealthKit
 import WidgetKit
 
 struct LogWaterIntent: AppIntent {
@@ -8,22 +7,9 @@ struct LogWaterIntent: AppIntent {
     static var openAppWhenRun: Bool = false
 
     func perform() async throws -> some IntentResult {
-        let store = HKHealthStore()
-        var sampleUUID: String?
-
-        if HKHealthStore.isHealthDataAvailable(),
-           let waterType = HKQuantityType.quantityType(forIdentifier: .dietaryWater) {
-            let mL = 8.0 * 29.5735
-            let quantity = HKQuantity(unit: .literUnit(with: .milli), doubleValue: mL)
-            let sample = HKQuantitySample(type: waterType, quantity: quantity, start: .now, end: .now)
-            try? await store.save(sample)
-            sampleUUID = sample.uuid.uuidString
-        }
-
-        let entry = BeverageEntry(type: .water, amount: 8, healthKitSampleUUID: sampleUUID)
+        let entry = BeverageEntry(type: .water, amount: 8)
         BeverageStore.append(entry)
 
-        // Update shared widget data
         syncWidgetNutrients()
         WidgetCenter.shared.reloadAllTimelines()
 
@@ -37,18 +23,7 @@ struct LogCoffeeIntent: AppIntent {
     static var openAppWhenRun: Bool = false
 
     func perform() async throws -> some IntentResult {
-        let store = HKHealthStore()
-        var sampleUUID: String?
-
-        if HKHealthStore.isHealthDataAvailable(),
-           let caffeineType = HKQuantityType.quantityType(forIdentifier: .dietaryCaffeine) {
-            let quantity = HKQuantity(unit: .gramUnit(with: .milli), doubleValue: 95)
-            let sample = HKQuantitySample(type: caffeineType, quantity: quantity, start: .now, end: .now)
-            try? await store.save(sample)
-            sampleUUID = sample.uuid.uuidString
-        }
-
-        let entry = BeverageEntry(type: .coffee, amount: 1, healthKitSampleUUID: sampleUUID)
+        let entry = BeverageEntry(type: .coffee, amount: 1)
         BeverageStore.append(entry)
 
         syncWidgetNutrients()

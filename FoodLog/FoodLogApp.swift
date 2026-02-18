@@ -12,6 +12,7 @@ struct FoodLogApp: App {
             )
             .task {
                 try? await HealthKitService.shared.requestAuthorization()
+                await syncPendingBeverages()
             }
             .onOpenURL { url in
                 switch url.host {
@@ -23,5 +24,24 @@ struct FoodLogApp: App {
             }
         }
         .modelContainer(for: FoodEntry.self)
+    }
+
+    private func syncPendingBeverages() async {
+        for entry in BeverageStore.unsyncedEntries() {
+            do {
+                let uuid: String?
+                switch entry.type {
+                case .water:
+                    uuid = try await HealthKitService.shared.logWater(oz: entry.amount)
+                case .coffee:
+                    uuid = try await HealthKitService.shared.logCoffee()
+                }
+                if let uuid {
+                    BeverageStore.markSynced(id: entry.id, healthKitSampleUUID: uuid)
+                }
+            } catch {
+                break // HealthKit unavailable, stop trying
+            }
+        }
     }
 }

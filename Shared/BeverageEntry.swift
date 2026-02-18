@@ -10,7 +10,7 @@ struct BeverageEntry: Codable, Identifiable {
     let type: BeverageType
     let timestamp: Date
     let amount: Double // oz for water, count (1) for coffee
-    let healthKitSampleUUID: String?
+    var healthKitSampleUUID: String?
 
     init(type: BeverageType, amount: Double, healthKitSampleUUID: String? = nil) {
         self.id = UUID()
@@ -19,6 +19,8 @@ struct BeverageEntry: Codable, Identifiable {
         self.amount = amount
         self.healthKitSampleUUID = healthKitSampleUUID
     }
+
+    var needsHealthKitSync: Bool { healthKitSampleUUID == nil }
 }
 
 struct BeverageStore {
@@ -44,6 +46,18 @@ struct BeverageStore {
         var entries = loadAll()
         entries.removeAll { $0.id == id }
         save(entries)
+    }
+
+    static func markSynced(id: UUID, healthKitSampleUUID: String) {
+        var entries = loadAll()
+        if let index = entries.firstIndex(where: { $0.id == id }) {
+            entries[index].healthKitSampleUUID = healthKitSampleUUID
+            save(entries)
+        }
+    }
+
+    static func unsyncedEntries() -> [BeverageEntry] {
+        loadToday().filter { $0.needsHealthKitSync }
     }
 
     static func todayWaterOz() -> Double {
