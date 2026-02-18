@@ -115,54 +115,54 @@ struct MealDetailView: View {
         errorMessage = nil
 
         do {
-            // 1. Call Claude for adjustment
             let analysis = try await ClaudeService.adjustMeal(
                 currentFoods: entry.foods,
                 adjustment: adjustmentText
             )
 
-            // 2. Match returned foods against FNDDS
-            let db = FNDDSDatabase.shared
-            var matched: [MatchedFood] = []
-            for food in analysis.foods {
-                if let match = db.search(
-                    identifiedName: food.foodName,
-                    terms: food.searchTerms,
-                    grams: food.estimatedGrams
-                ) {
-                    matched.append(match)
-                }
-            }
-
-            guard !matched.isEmpty else {
-                errorMessage = "Could not find matching foods in the database."
+            guard !analysis.foods.isEmpty else {
+                errorMessage = "Could not process the adjustment."
                 isAdjusting = false
                 return
             }
 
-            // 3. Delete old HealthKit samples
+            // Delete old HealthKit samples
             if !entry.healthKitSampleUUIDs.isEmpty {
                 try await HealthKitService.shared.deleteMeal(sampleUUIDs: entry.healthKitSampleUUIDs)
             }
 
-            // 4. Compute new nutrients and optionally update timestamp
-            let newNutrients = NutrientData.combined(matched.map(\.nutrients))
+            let db = FNDDSDatabase.shared
+            var nutrientsList: [NutrientData] = []
+            var loggedFoods: [LoggedFood] = []
 
-            var mealDate = entry.timestamp
-            if let mealTimeString = analysis.mealTime {
-                let formatter = ISO8601DateFormatter()
-                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                if let parsed = formatter.date(from: mealTimeString) {
-                    mealDate = parsed
+            for food in analysis.foods {
+                let nutrients: NutrientData
+                if food.source == "database", let foodCode = food.foodCode,
+                   let dbNutrients = db.getNutrients(foodCode: foodCode, grams: food.grams) {
+                    nutrients = dbNutrients
                 } else {
-                    formatter.formatOptions = [.withInternetDateTime]
-                    if let parsed = formatter.date(from: mealTimeString) {
-                        mealDate = parsed
-                    }
+                    nutrients = makeMacroOnlyNutrients(food)
                 }
+                nutrientsList.append(nutrients)
+
+                loggedFoods.append(LoggedFood(
+                    name: food.foodName,
+                    matchedDescription: food.matchedDescription ?? "Estimated",
+                    grams: food.grams,
+                    calories: food.calories,
+                    protein: food.protein,
+                    carbs: food.carbs,
+                    fat: food.fat,
+                    source: food.source
+                ))
             }
 
-            // 5. Save new HealthKit samples
+            let newNutrients = NutrientData.combined(nutrientsList)
+            var mealDate = entry.timestamp
+            if let mealTimeString = analysis.mealTime {
+                mealDate = parseMealTime(mealTimeString) ?? entry.timestamp
+            }
+
             let mealID = UUID()
             let newSampleUUIDs = try await HealthKitService.shared.saveMeal(
                 nutrients: newNutrients,
@@ -170,20 +170,7 @@ struct MealDetailView: View {
                 date: mealDate
             )
 
-            // 6. Update SwiftData entry
-            let newLoggedFoods = matched.map { food in
-                LoggedFood(
-                    name: food.identifiedName,
-                    matchedDescription: food.fnddsDescription,
-                    grams: food.grams,
-                    calories: food.nutrients.calories ?? 0,
-                    protein: food.nutrients.protein ?? 0,
-                    carbs: food.nutrients.carbohydrates ?? 0,
-                    fat: food.nutrients.totalFat ?? 0
-                )
-            }
-
-            entry.foods = newLoggedFoods
+            entry.foods = loggedFoods
             entry.nutrients = newNutrients
             entry.healthKitSampleUUIDs = newSampleUUIDs
             entry.timestamp = mealDate
@@ -195,5 +182,24 @@ struct MealDetailView: View {
         }
 
         isAdjusting = false
+    }
+
+    private func makeMacroOnlyNutrients(_ food: AgenticFoodResult) -> NutrientData {
+        var n = NutrientData()
+        n.calories = food.calories
+        n.protein = food.protein
+        n.totalFat = food.fat
+        n.carbohydrates = food.carbs
+        n.fiber = food.fiber
+        n.sugar = food.sugar
+        return n
+    }
+
+    private func parseMealTime(_ mealTimeString: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let parsed = formatter.date(from: mealTimeString) { return parsed }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: mealTimeString)
     }
 }

@@ -15,49 +15,125 @@ struct ClaudeService {
         }
     }
 
-    private static var systemPrompt: String {
+    // MARK: - Tool definition
+
+    private static let searchToolDefinition: [String: Any] = [
+        "name": "search_food_database",
+        "description": "Search the USDA FNDDS food database. Returns top 5 matches with macros per 100g and available portion sizes. Use this to find nutrition data for specific foods.",
+        "input_schema": [
+            "type": "object",
+            "properties": [
+                "query": [
+                    "type": "string",
+                    "description": "Search query for the food database. Use common food names. The database uses descriptions like 'Chicken breast, roasted' or 'Rice, white, cooked'. Try simple terms first (e.g. 'beef meatball' not 'homemade Italian-style beef meatballs')."
+                ]
+            ],
+            "required": ["query"]
+        ] as [String: Any]
+    ]
+
+    // MARK: - System prompts
+
+    private static var agenticSystemPrompt: String {
         let now = ISO8601DateFormatter().string(from: Date())
         return """
-        You are a food identification assistant. The current date/time is \(now).
+        You are a food nutrition assistant. The current date/time is \(now).
 
-        When given a food description or photo, identify each distinct food item and estimate its portion in grams.
+        You have access to a USDA FNDDS food database via the search_food_database tool. Your job is to:
+        1. Identify each food item in the user's meal
+        2. Search the database for each food to get accurate nutrition data
+        3. Evaluate whether the database matches are reasonable
+        4. Return final nutrition values for each food
 
-        Return ONLY a JSON object (no markdown, no explanation) with this structure:
+        ## How to use the database
+        - Search for each food individually (e.g. "chicken breast", "white rice", "beef meatball")
+        - The database returns results per 100g with available portion sizes
+        - Database descriptions follow USDA format: "Food, preparation method" (e.g. "Chicken breast, grilled")
+        - Try simple, common terms first. If results are poor, try alternative terms.
+        - You can make multiple searches in a single response by calling the tool multiple times.
+
+        ## Evaluating matches
+        - CHECK that the matched food makes sense for what the user ate
+        - CHECK that macros are plausible. For example:
+          - Meat/poultry/fish: typically 20-30g protein per 100g
+          - Cooked grains/pasta: typically 3-5g protein per 100g
+          - Vegetables: typically 1-3g protein per 100g
+          - Cheese: typically 20-28g protein per 100g
+        - If a match looks wrong (e.g. a soup returned for "meatballs"), search again with different terms
+        - If no good match exists, use your own knowledge to estimate (set source to "estimate")
+
+        ## When to override with estimates
+        - Database returned obviously wrong food (e.g. "Soup, meatball" for plain meatballs)
+        - No results found after trying 2+ queries
+        - Complex/mixed dishes where individual ingredients are hard to isolate
+        - Restaurant or branded foods not in USDA database
+        When estimating, use your nutrition knowledge to provide realistic values.
+
+        ## Final response format
+        After you have gathered all nutrition data, respond with ONLY a JSON object (no markdown, no explanation):
         {
           "foods": [
             {
-              "food_name": "chicken breast, grilled",
-              "estimated_grams": 120,
-              "search_terms": ["chicken breast grilled", "chicken breast", "chicken"]
+              "food_name": "Beef meatballs",
+              "grams": 90,
+              "calories": 207,
+              "protein": 16.2,
+              "fat": 13.5,
+              "carbs": 5.4,
+              "fiber": 0.3,
+              "sugar": 1.2,
+              "source": "database",
+              "food_code": 27111500,
+              "matched_description": "Meatball, beef"
             }
           ],
           "meal_time": "2025-01-15T08:00:00Z"
         }
 
         Rules:
-        - Break composite meals into individual ingredients (e.g. a burrito -> tortilla, rice, beans, meat, cheese)
+        - Break composite meals into individual ingredients
         - Estimate realistic portion sizes in grams
-        - For search_terms, provide 2-4 terms from most specific to least specific. These will be used to search a USDA food database, so use common food names
-        - If you see a photo, identify everything visible on the plate/in the meal
-        - If the user mentions a time context (e.g. "for breakfast", "for lunch", "yesterday", "this morning"), infer a reasonable meal_time as an ISO8601 string. For example, "I had eggs for breakfast" said in the evening should produce a morning timestamp for today. "yesterday" should use yesterday's date.
-        - If no time context is mentioned, omit the meal_time field entirely
+        - "source" must be "database" (with food_code and matched_description) or "estimate" (food_code null, matched_description null)
+        - Scale the per-100g values to the actual portion grams in your final answer
+        - If the user mentions a time context, include meal_time as ISO8601. Otherwise omit it.
+        - Round nutrient values to 1 decimal place
         """
     }
 
-    private static var adjustmentSystemPrompt: String {
+    private static var agenticAdjustmentPrompt: String {
         let now = ISO8601DateFormatter().string(from: Date())
         return """
-        You are a food identification assistant. The current date/time is \(now).
+        You are a food nutrition assistant. The current date/time is \(now).
 
-        The user has already logged a meal and wants to adjust it. You will receive the current foods in the meal and the user's adjustment request.
+        The user has already logged a meal and wants to adjust it. You will receive the current foods and the adjustment request.
 
-        Return ONLY a JSON object (no markdown, no explanation) with the COMPLETE updated meal:
+        You have access to a USDA FNDDS food database via the search_food_database tool.
+
+        Apply the user's adjustment (change portions, add/remove foods, etc.) and return the COMPLETE updated meal.
+
+        For any NEW foods added, search the database to get accurate nutrition data. For existing foods where only the portion changes, you can scale the existing values.
+
+        ## Evaluating matches
+        - CHECK that the matched food makes sense
+        - CHECK that macros are plausible (meat ~20-30g protein/100g, grains ~3-5g/100g, etc.)
+        - If a match looks wrong, try different search terms or use your own estimate
+
+        ## Final response format
+        Return ONLY a JSON object (no markdown, no explanation):
         {
           "foods": [
             {
               "food_name": "chicken breast, grilled",
-              "estimated_grams": 120,
-              "search_terms": ["chicken breast grilled", "chicken breast", "chicken"]
+              "grams": 120,
+              "calories": 198,
+              "protein": 37.2,
+              "fat": 4.3,
+              "carbs": 0,
+              "fiber": 0,
+              "sugar": 0,
+              "source": "database",
+              "food_code": 24198210,
+              "matched_description": "Chicken breast, grilled"
             }
           ],
           "meal_time": "2025-01-15T08:00:00Z"
@@ -65,34 +141,37 @@ struct ClaudeService {
 
         Rules:
         - Return ALL foods for the meal (not just the changed ones)
-        - Apply the user's adjustment: smaller/larger portions, remove items, add items, etc.
-        - Keep search_terms with 2-4 terms from most specific to least specific
+        - "source": "database" (with food_code/matched_description) or "estimate" (nulls)
+        - Scale values to actual portion grams
+        - Round nutrient values to 1 decimal place
         - If the adjustment implies a time change, include meal_time. Otherwise omit it.
         """
     }
 
-    static func identifyFoods(description: String) async throws -> MealAnalysis {
+    // MARK: - Public API
+
+    static func identifyFoods(description: String) async throws -> AgenticMealAnalysis {
         let messages: [[String: Any]] = [
-            ["role": "user", "content": "Identify the foods in this meal: \(description)"]
+            ["role": "user", "content": "Identify the foods and their nutrition in this meal: \(description)"]
         ]
-        return try await callClaude(messages: messages, system: systemPrompt)
+        return try await runAgenticLoop(messages: messages, system: agenticSystemPrompt)
     }
 
-    static func identifyFoods(imageData: Data) async throws -> MealAnalysis {
+    static func identifyFoods(imageData: Data) async throws -> AgenticMealAnalysis {
         let base64Image = imageData.base64EncodedString()
         let messages: [[String: Any]] = [
             [
                 "role": "user",
                 "content": [
                     ["type": "image", "source": ["type": "base64", "media_type": "image/jpeg", "data": base64Image]],
-                    ["type": "text", "text": "Identify each food item in this meal photo."]
+                    ["type": "text", "text": "Identify each food item in this meal photo and provide nutrition data."]
                 ]
             ]
         ]
-        return try await callClaude(messages: messages, system: systemPrompt)
+        return try await runAgenticLoop(messages: messages, system: agenticSystemPrompt)
     }
 
-    static func adjustMeal(currentFoods: [LoggedFood], adjustment: String) async throws -> MealAnalysis {
+    static func adjustMeal(currentFoods: [LoggedFood], adjustment: String) async throws -> AgenticMealAnalysis {
         let foodDescriptions = currentFoods.map { food in
             "\(food.name): \(Int(food.grams))g (\(Int(food.calories)) kcal, \(Int(food.protein))g protein, \(Int(food.carbs))g carbs, \(Int(food.fat))g fat)"
         }.joined(separator: "\n")
@@ -105,20 +184,132 @@ struct ClaudeService {
             Adjustment: \(adjustment)
             """]
         ]
-        return try await callClaude(messages: messages, system: adjustmentSystemPrompt)
+        return try await runAgenticLoop(messages: messages, system: agenticAdjustmentPrompt)
     }
 
-    private static func callClaude(messages: [[String: Any]], system: String) async throws -> MealAnalysis {
+    // MARK: - Agentic loop
+
+    private static func runAgenticLoop(messages: [[String: Any]], system: String) async throws -> AgenticMealAnalysis {
+        var conversationMessages = messages
+        let maxIterations = 4
+
+        for _ in 0..<maxIterations {
+            let (contentBlocks, stopReason) = try await callClaudeAPI(
+                messages: conversationMessages,
+                system: system,
+                tools: [searchToolDefinition]
+            )
+
+            if stopReason == "tool_use" {
+                // Extract tool calls and text from response
+                var assistantContent: [[String: Any]] = []
+                var toolResults: [[String: Any]] = []
+
+                for block in contentBlocks {
+                    if let type = block["type"] as? String {
+                        if type == "text", let text = block["text"] as? String {
+                            assistantContent.append(["type": "text", "text": text])
+                        } else if type == "tool_use",
+                                  let id = block["id"] as? String,
+                                  let name = block["name"] as? String,
+                                  let input = block["input"] as? [String: Any] {
+                            assistantContent.append([
+                                "type": "tool_use",
+                                "id": id,
+                                "name": name,
+                                "input": input
+                            ])
+                            let result = executeToolCall(name: name, input: input)
+                            toolResults.append([
+                                "type": "tool_result",
+                                "tool_use_id": id,
+                                "content": result
+                            ])
+                        }
+                    }
+                }
+
+                // Append assistant message with tool_use blocks
+                conversationMessages.append(["role": "assistant", "content": assistantContent])
+                // Append user message with tool_results
+                conversationMessages.append(["role": "user", "content": toolResults])
+            } else {
+                // end_turn — extract the final text response
+                let textContent = contentBlocks
+                    .compactMap { $0["text"] as? String }
+                    .joined()
+
+                return try parseAgenticResponse(text: textContent)
+            }
+        }
+
+        // Max iterations reached — try to parse whatever we have
+        throw ClaudeError.invalidResponse
+    }
+
+    // MARK: - Tool execution
+
+    private static func executeToolCall(name: String, input: [String: Any]) -> String {
+        guard name == "search_food_database",
+              let query = input["query"] as? String else {
+            return "{\"error\": \"Unknown tool\"}"
+        }
+
+        let results = FNDDSDatabase.shared.searchTopN(query: query, limit: 5)
+
+        if results.isEmpty {
+            return "{\"results\": [], \"message\": \"No matches found for '\(query)'. Try different search terms.\"}"
+        }
+
+        let jsonResults = results.map { r -> [String: Any] in
+            var entry: [String: Any] = [
+                "food_code": r.foodCode,
+                "description": r.description,
+                "per_100g": [
+                    "calories": r.caloriesPer100g,
+                    "protein_g": r.proteinPer100g,
+                    "fat_g": r.fatPer100g,
+                    "carbs_g": r.carbsPer100g,
+                    "fiber_g": r.fiberPer100g,
+                    "sugar_g": r.sugarPer100g
+                ] as [String: Any]
+            ]
+            if !r.portions.isEmpty {
+                entry["portions"] = r.portions.map { p in
+                    ["description": p.description, "grams": p.grams] as [String: Any]
+                }
+            }
+            return entry
+        }
+
+        let responseDict: [String: Any] = ["results": jsonResults]
+        if let data = try? JSONSerialization.data(withJSONObject: responseDict),
+           let str = String(data: data, encoding: .utf8) {
+            return str
+        }
+        return "{\"error\": \"Failed to serialize results\"}"
+    }
+
+    // MARK: - API call
+
+    private static func callClaudeAPI(
+        messages: [[String: Any]],
+        system: String,
+        tools: [[String: Any]]
+    ) async throws -> (contentBlocks: [[String: Any]], stopReason: String) {
         guard let apiKey = KeychainService.getAPIKey(), !apiKey.isEmpty else {
             throw ClaudeError.noAPIKey
         }
 
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "model": "claude-sonnet-4-20250514",
-            "max_tokens": 1024,
+            "max_tokens": 4096,
             "system": system,
             "messages": messages
         ]
+        if !tools.isEmpty {
+            body["tools"] = tools
+        }
 
         let jsonData = try JSONSerialization.data(withJSONObject: body)
 
@@ -140,57 +331,75 @@ struct ClaudeService {
             throw ClaudeError.apiError("API returned \(httpResponse.statusCode): \(errorBody)")
         }
 
-        return try parseResponse(data: data)
-    }
-
-    private static func parseResponse(data: Data) throws -> MealAnalysis {
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let content = json["content"] as? [[String: Any]],
-              let firstBlock = content.first,
-              let text = firstBlock["text"] as? String else {
+              let stopReason = json["stop_reason"] as? String else {
             throw ClaudeError.invalidResponse
         }
 
-        // Try parsing as MealAnalysis object first ({"foods": [...], "meal_time": "..."})
+        return (content, stopReason)
+    }
+
+    // MARK: - Response parsing
+
+    private static func parseAgenticResponse(text: String) throws -> AgenticMealAnalysis {
+        // Try parsing as AgenticMealAnalysis object
         if let objectRange = text.range(of: "\\{\\s*\"foods\"\\s*:\\s*\\[", options: .regularExpression) {
-            // Find the full JSON object starting from the match
             let startIndex = objectRange.lowerBound
             let substring = String(text[startIndex...])
             if let jsonData = substring.data(using: .utf8) {
-                // Try to find valid JSON by parsing progressively
-                if let analysis = try? JSONDecoder().decode(MealAnalysis.self, from: jsonData) {
+                if let analysis = try? JSONDecoder().decode(AgenticMealAnalysis.self, from: jsonData) {
                     return analysis
                 }
-                // Try trimming trailing content after the object
-                if let endRange = substring.range(of: "\\}\\s*$", options: .regularExpression) {
-                    let trimmed = String(substring[...endRange.upperBound])
-                    if let trimmedData = trimmed.data(using: .utf8),
-                       let analysis = try? JSONDecoder().decode(MealAnalysis.self, from: trimmedData) {
-                        return analysis
-                    }
+                // Try finding the matching closing brace
+                if let extracted = extractJSON(from: substring),
+                   let extractedData = extracted.data(using: .utf8),
+                   let analysis = try? JSONDecoder().decode(AgenticMealAnalysis.self, from: extractedData) {
+                    return analysis
                 }
             }
         }
 
-        // Fallback: try parsing the whole text as MealAnalysis
+        // Fallback: try the entire text
         if let textData = text.data(using: .utf8),
-           let analysis = try? JSONDecoder().decode(MealAnalysis.self, from: textData) {
+           let analysis = try? JSONDecoder().decode(AgenticMealAnalysis.self, from: textData) {
             return analysis
         }
 
-        // Fallback: parse as bare array and wrap in MealAnalysis
-        let jsonString: String
-        if let range = text.range(of: "\\[\\s*\\{[\\s\\S]*\\}\\s*\\]", options: .regularExpression) {
-            jsonString = String(text[range])
-        } else {
-            jsonString = text
+        throw ClaudeError.invalidResponse
+    }
+
+    /// Extract a balanced JSON object from a string starting with '{'
+    private static func extractJSON(from text: String) -> String? {
+        var depth = 0
+        var inString = false
+        var escape = false
+        var endIndex: String.Index?
+
+        for i in text.indices {
+            let c = text[i]
+            if escape {
+                escape = false
+                continue
+            }
+            if c == "\\" && inString {
+                escape = true
+                continue
+            }
+            if c == "\"" {
+                inString.toggle()
+                continue
+            }
+            if inString { continue }
+            if c == "{" || c == "[" { depth += 1 }
+            if c == "}" || c == "]" { depth -= 1 }
+            if depth == 0 {
+                endIndex = text.index(after: i)
+                break
+            }
         }
 
-        guard let jsonData = jsonString.data(using: .utf8) else {
-            throw ClaudeError.invalidResponse
-        }
-
-        let foods = try JSONDecoder().decode([IdentifiedFood].self, from: jsonData)
-        return MealAnalysis(foods: foods, mealTime: nil)
+        guard let end = endIndex else { return nil }
+        return String(text[text.startIndex..<end])
     }
 }

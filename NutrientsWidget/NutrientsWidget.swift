@@ -78,41 +78,28 @@ struct SmallWidgetView: View {
 struct MediumWidgetView: View {
     let entry: NutrientsEntry
 
-    var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Image(systemName: "leaf.fill")
-                        .foregroundStyle(.green)
-                    Text("Today")
-                        .font(.headline)
-                }
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 4)
 
-                LazyVGrid(columns: [
-                    GridItem(.flexible()),
-                    GridItem(.flexible()),
-                    GridItem(.flexible())
-                ], spacing: 6) {
-                    NutrientPill(label: "Cal", value: entry.nutrients.calories, unit: "", color: .orange)
-                    NutrientPill(label: "Protein", value: entry.nutrients.protein, unit: "g", color: .red)
-                    NutrientPill(label: "Carbs", value: entry.nutrients.carbs, unit: "g", color: .blue)
-                    NutrientPill(label: "Fat", value: entry.nutrients.fat, unit: "g", color: .yellow)
-                    NutrientPill(label: "Fiber", value: entry.nutrients.fiber, unit: "g", color: .green)
-                    NutrientPill(label: "Sugar", value: entry.nutrients.sugar, unit: "g", color: .pink)
-                }
-            }
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 8) {
+            NutrientPill(label: "Cal", value: entry.nutrients.calories, unit: "", color: .orange)
+            NutrientPill(label: "Protein", value: entry.nutrients.protein, unit: "g", color: .red)
+            NutrientPill(label: "Carbs", value: entry.nutrients.carbs, unit: "g", color: .blue)
+            NutrientPill(label: "Fat", value: entry.nutrients.fat, unit: "g", color: .yellow)
+            NutrientPill(label: "Fiber", value: entry.nutrients.fiber, unit: "g", color: .green)
+            NutrientPill(label: "Sugar", value: entry.nutrients.sugar, unit: "g", color: .pink)
 
             Link(destination: URL(string: "nutritiousai://add-food")!) {
-                VStack(spacing: 4) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.largeTitle)
+                VStack(spacing: 2) {
+                    Image(systemName: "plus")
+                        .font(.title3.bold())
                     Text("Log")
-                        .font(.caption.bold())
+                        .font(.system(size: 10))
                 }
                 .foregroundStyle(.white)
-                .frame(width: 60, height: 60)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.green)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
         }
         .containerBackground(.fill.tertiary, for: .widget)
@@ -149,17 +136,16 @@ struct NutrientPill: View {
     let color: Color
 
     var body: some View {
-        VStack(spacing: 1) {
+        VStack(spacing: 2) {
             Text("\(Int(value))\(unit)")
-                .font(.caption.bold())
+                .font(.subheadline.bold())
             Text(label)
-                .font(.system(size: 9))
+                .font(.system(size: 10))
                 .foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(color.opacity(0.15))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
 

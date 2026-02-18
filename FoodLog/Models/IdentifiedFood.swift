@@ -1,36 +1,36 @@
 import Foundation
 
-/// Claude's full response: foods plus optional inferred meal time
-struct MealAnalysis: Codable, Sendable {
-    let foods: [IdentifiedFood]
-    let mealTime: String? // ISO8601, only when user implies a time
+/// A single food result from the agentic tool-use loop
+struct AgenticFoodResult: Codable, Sendable {
+    let foodName: String
+    let grams: Double
+    let calories: Double
+    let protein: Double
+    let fat: Double
+    let carbs: Double
+    let fiber: Double
+    let sugar: Double
+    let source: String // "database" or "estimate"
+    let foodCode: Int?
+    let matchedDescription: String?
+
+    enum CodingKeys: String, CodingKey {
+        case foodName = "food_name"
+        case grams, calories, protein, fat, carbs, fiber, sugar, source
+        case foodCode = "food_code"
+        case matchedDescription = "matched_description"
+    }
+}
+
+/// Complete meal analysis from the agentic loop
+struct AgenticMealAnalysis: Codable, Sendable {
+    let foods: [AgenticFoodResult]
+    let mealTime: String?
 
     enum CodingKeys: String, CodingKey {
         case foods
         case mealTime = "meal_time"
     }
-}
-
-/// Claude's response: identified food item with estimated portion
-struct IdentifiedFood: Codable, Sendable {
-    let foodName: String
-    let estimatedGrams: Double
-    let searchTerms: [String]
-
-    enum CodingKeys: String, CodingKey {
-        case foodName = "food_name"
-        case estimatedGrams = "estimated_grams"
-        case searchTerms = "search_terms"
-    }
-}
-
-/// After FNDDS lookup: matched food with scaled nutrients
-struct MatchedFood: Sendable {
-    let identifiedName: String
-    let fnddsDescription: String
-    let foodCode: Int
-    let grams: Double
-    let nutrients: NutrientData
 }
 
 /// Simplified Codable struct for SwiftData storage in FoodEntry.foodsJSON
@@ -42,4 +42,28 @@ struct LoggedFood: Codable, Sendable {
     let protein: Double
     let carbs: Double
     let fat: Double
+    let source: String?
+
+    init(name: String, matchedDescription: String, grams: Double, calories: Double, protein: Double, carbs: Double, fat: Double, source: String? = nil) {
+        self.name = name
+        self.matchedDescription = matchedDescription
+        self.grams = grams
+        self.calories = calories
+        self.protein = protein
+        self.carbs = carbs
+        self.fat = fat
+        self.source = source
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = try c.decode(String.self, forKey: .name)
+        matchedDescription = try c.decode(String.self, forKey: .matchedDescription)
+        grams = try c.decode(Double.self, forKey: .grams)
+        calories = try c.decode(Double.self, forKey: .calories)
+        protein = try c.decode(Double.self, forKey: .protein)
+        carbs = try c.decode(Double.self, forKey: .carbs)
+        fat = try c.decode(Double.self, forKey: .fat)
+        source = try c.decodeIfPresent(String.self, forKey: .source)
+    }
 }
