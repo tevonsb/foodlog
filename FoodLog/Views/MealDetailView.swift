@@ -32,6 +32,32 @@ struct MealDetailView: View {
                 }
             }
 
+            Section("Adjust Meal") {
+                HStack {
+                    TextField("e.g. portion was smaller...", text: $adjustmentText, axis: .vertical)
+                        .lineLimit(1...3)
+                        .disabled(isAdjusting)
+                    Button {
+                        Task { await adjustMeal() }
+                    } label: {
+                        if isAdjusting {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.title2)
+                        }
+                    }
+                    .disabled(adjustmentText.isEmpty || isAdjusting)
+                }
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+
             if !entry.foods.isEmpty {
                 Section("Foods") {
                     ForEach(Array(entry.foods.enumerated()), id: \.offset) { _, food in
@@ -81,31 +107,6 @@ struct MealDetailView: View {
                 }
             }
 
-            Section("Adjust Meal") {
-                HStack {
-                    TextField("e.g. portion was smaller...", text: $adjustmentText, axis: .vertical)
-                        .lineLimit(1...3)
-                        .disabled(isAdjusting)
-                    Button {
-                        Task { await adjustMeal() }
-                    } label: {
-                        if isAdjusting {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Image(systemName: "arrow.up.circle.fill")
-                                .font(.title2)
-                        }
-                    }
-                    .disabled(adjustmentText.isEmpty || isAdjusting)
-                }
-
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-            }
         }
         .navigationTitle("Meal Details")
     }
