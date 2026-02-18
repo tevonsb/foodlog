@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -21,17 +21,17 @@
 		9428061159AF238A52D8F9A8 /* FoodLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A0784CBEF440A05669898C1 /* FoodLogView.swift */; };
 		952A9123778113E6F5E41666 /* CameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F157AC74C62EA21BA1A5D7F /* CameraView.swift */; };
 		9CC227081C8B9E950D580D96 /* NutrientsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B229B75CBA3350F8D94DF1 /* NutrientsWidget.swift */; };
+		B2C3D4E5F607B8C9D0E1F2A1 /* BeverageEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F607B8C9D0E1F2 /* BeverageEntry.swift */; };
 		BA27B034FED83343E05A7F9C /* NutrientsWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 210492D9A2623C82F2C9E63E /* NutrientsWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		C3D4E5F607B8C9D0E1F2A1B2 /* BeverageEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F607B8C9D0E1F2 /* BeverageEntry.swift */; };
 		C9ABD125D8FB0CD72203899A /* TodayNutrients.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CC3868ECAFEC90D555AEFB2 /* TodayNutrients.swift */; };
+		E5F6A7B809D0E1F2A1B2C3D4 /* BeverageIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B809D0E1F2A1B2C3 /* BeverageIntents.swift */; };
 		ECE1C9926469988A4681947A /* fndds.sqlite in Resources */ = {isa = PBXBuildFile; fileRef = DE3859C09443F406E8F83C15 /* fndds.sqlite */; };
 		EFB13BCE2283BFBD5C31FB09 /* ClaudeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EABD568EEBF11F173DDE2099 /* ClaudeService.swift */; };
 		F69B69B1956835132371C36C /* NutrientData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB443A8CAB3DD8EA56767CD6 /* NutrientData.swift */; };
+		F6A7B809D0E1F2A1B2C3D4E5 /* BeverageIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B809D0E1F2A1B2C3 /* BeverageIntents.swift */; };
 		FCC338EE77EF52A9BA356807 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90325F2D5E6AE6F27877B050 /* SettingsView.swift */; };
 		FD205A2F7FCE7635B1FCC43F /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 546057AAB58C8476D2470618 /* KeychainService.swift */; };
-		B2C3D4E5F607B8C9D0E1F2A1 /* BeverageEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F607B8C9D0E1F2 /* BeverageEntry.swift */; };
-		C3D4E5F607B8C9D0E1F2A1B2 /* BeverageEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F607B8C9D0E1F2 /* BeverageEntry.swift */; };
-		E5F6A7B809D0E1F2A1B2C3D4 /* BeverageIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B809D0E1F2A1B2C3 /* BeverageIntents.swift */; };
-		F6A7B809D0E1F2A1B2C3D4E5 /* BeverageIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B809D0E1F2A1B2C3 /* BeverageIntents.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -60,7 +60,7 @@
 
 /* Begin PBXFileReference section */
 		17CE1FFF08E5E3F5C2665D9C /* FoodLogApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodLogApp.swift; sourceTree = "<group>"; };
-		210492D9A2623C82F2C9E63E /* NutrientsWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = NutrientsWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		210492D9A2623C82F2C9E63E /* NutrientsWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NutrientsWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		229A8D6915E1DA27E9795D77 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		27EBB0FC405DE30940B0CCC6 /* FNDDSDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FNDDSDatabase.swift; sourceTree = "<group>"; };
 		44B229B75CBA3350F8D94DF1 /* NutrientsWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutrientsWidget.swift; sourceTree = "<group>"; };
@@ -74,8 +74,10 @@
 		808A121CC62B6846A04E9132 /* FoodEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodEntry.swift; sourceTree = "<group>"; };
 		90325F2D5E6AE6F27877B050 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A04A06477132F3E7F7E1B520 /* NutrientsWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NutrientsWidget.entitlements; sourceTree = "<group>"; };
+		A1B2C3D4E5F607B8C9D0E1F2 /* BeverageEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeverageEntry.swift; sourceTree = "<group>"; };
 		AFE3B43DCB17DD4028351B07 /* IdentifiedFood.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentifiedFood.swift; sourceTree = "<group>"; };
 		BFDA4F623D7B73A83EF4E492 /* HealthKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
+		D4E5F6A7B809D0E1F2A1B2C3 /* BeverageIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeverageIntents.swift; sourceTree = "<group>"; };
 		D61EC7B7AB9809D65FE28EB7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		D6BF38EF6691FAA8C9402275 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		D6E00E8000B12F9144775441 /* FoodLog.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FoodLog.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -83,8 +85,6 @@
 		E481DB6AA55DDB788F2549E4 /* MacroRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacroRow.swift; sourceTree = "<group>"; };
 		EABD568EEBF11F173DDE2099 /* ClaudeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeService.swift; sourceTree = "<group>"; };
 		FB443A8CAB3DD8EA56767CD6 /* NutrientData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutrientData.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F607B8C9D0E1F2 /* BeverageEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeverageEntry.swift; sourceTree = "<group>"; };
-		D4E5F6A7B809D0E1F2A1B2C3 /* BeverageIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeverageIntents.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -271,7 +271,6 @@
 			);
 			mainGroup = CB6A119B05F15903017D8DC6;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -374,7 +373,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.tevon.foodlog.NutrientsWidget;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tevon.foodlog.NutrientWidget;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -395,7 +394,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.tevon.foodlog.NutrientsWidget;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tevon.foodlog.NutrientWidget;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
