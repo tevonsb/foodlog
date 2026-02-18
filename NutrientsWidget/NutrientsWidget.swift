@@ -79,6 +79,7 @@ struct MediumWidgetView: View {
             }
             HStack(spacing: 8) {
                 NutrientPill(label: "Water", value: entry.nutrients.waterOz, unit: "oz", color: .cyan)
+                NutrientPill(label: "Coffee", value: Double(entry.nutrients.coffees), unit: "", color: .brown)
 
                 Button(intent: LogWaterIntent()) {
                     Image(systemName: "drop.fill")
@@ -89,8 +90,6 @@ struct MediumWidgetView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
                 .buttonStyle(.plain)
-
-                NutrientPill(label: "Coffee", value: Double(entry.nutrients.coffees), unit: "", color: .brown)
 
                 Button(intent: LogCoffeeIntent()) {
                     Image(systemName: "cup.and.saucer.fill")
