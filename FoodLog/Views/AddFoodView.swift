@@ -1,6 +1,6 @@
 import SwiftUI
 import SwiftData
-import PhotosUI
+import UIKit
 
 struct AddFoodView: View {
     var onSaved: (() -> Void)?
@@ -10,90 +10,107 @@ struct AddFoodView: View {
     @State private var isLogging = false
     @State private var errorMessage: String?
     @State private var showCamera = false
-    @State private var photoPickerItem: PhotosPickerItem?
     @State private var capturedImageData: Data?
 
+    private var canLog: Bool {
+        (!mealText.isEmpty || capturedImageData != nil) && !isLogging
+    }
+
     var body: some View {
-        Form {
-            if let imageData = capturedImageData, let uiImage = UIImage(data: imageData) {
-                Section {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxHeight: 200)
-                        .frame(maxWidth: .infinity)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
-                        .onTapGesture {
-                            capturedImageData = nil
+        VStack(spacing: 0) {
+            // Scrollable content area
+            ScrollView {
+                VStack(spacing: 16) {
+                    if let imageData = capturedImageData, let uiImage = UIImage(data: imageData) {
+                        ZStack(alignment: .topTrailing) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxHeight: 300)
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+
+                            Button {
+                                capturedImageData = nil
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .symbolRenderingMode(.palette)
+                                    .foregroundStyle(.white, .black.opacity(0.5))
+                            }
+                            .padding(8)
                         }
+                        .padding(.horizontal)
+                    }
+
+                    if isLogging {
+                        VStack(spacing: 8) {
+                            ProgressView()
+                            Text("Analyzing your meal...")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.top, 40)
+                    }
+
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .padding(.horizontal)
+                    }
+
+                    if capturedImageData == nil && !isLogging {
+                        VStack(spacing: 12) {
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 48))
+                                .foregroundStyle(.quaternary)
+                            Text("Take a photo of your meal")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 80)
+                    }
                 }
+                .padding(.top)
             }
 
-            Section {
+            // Bottom input bar (messaging style)
+            Divider()
+            HStack(spacing: 12) {
+                Button {
+                    showCamera = true
+                } label: {
+                    Image(systemName: "camera.fill")
+                        .font(.title2)
+                        .foregroundStyle(Color.accentColor)
+                }
+
                 TextField("Describe your meal...", text: $mealText, axis: .vertical)
-                    .lineLimit(2...4)
-            }
+                    .lineLimit(1...4)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color(.systemGray6))
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
 
-            Section {
-                HStack(spacing: 16) {
-                    Button {
-                        showCamera = true
-                    } label: {
-                        Label("Camera", systemImage: "camera")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-
-                    PhotosPicker(selection: $photoPickerItem, matching: .images) {
-                        Label("Photos", systemImage: "photo")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                }
-                .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
-            }
-
-            Section {
                 Button {
                     Task { await logMeal() }
                 } label: {
-                    if isLogging {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                    } else {
-                        Text("Log Meal")
-                            .frame(maxWidth: .infinity)
-                    }
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.largeTitle)
+                        .foregroundStyle(canLog ? Color.accentColor : Color(.systemGray4))
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(mealText.isEmpty && capturedImageData == nil || isLogging)
-                .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
+                .disabled(!canLog)
             }
-
-            if let errorMessage {
-                Section {
-                    Text(errorMessage)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(.systemBackground))
         }
-        .navigationTitle("Add Food")
+        .navigationTitle("Log Meal")
+        .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(isPresented: $showCamera) {
             CameraView { imageData in
                 capturedImageData = imageData
-            }
-        }
-        .onChange(of: photoPickerItem) { _, newItem in
-            Task {
-                if let data = try? await newItem?.loadTransferable(type: Data.self) {
-                    if let image = UIImage(data: data),
-                       let resized = resizeImage(image, maxDimension: 1024),
-                       let jpeg = resized.jpegData(compressionQuality: 0.8) {
-                        capturedImageData = jpeg
-                    }
-                }
             }
         }
     }
@@ -103,7 +120,6 @@ struct AddFoodView: View {
         errorMessage = nil
 
         do {
-            // 1. Analyze with Claude
             let analysis: MealAnalysis
             if let imageData = capturedImageData {
                 analysis = try await ClaudeService.identifyFoods(imageData: imageData)
@@ -111,7 +127,6 @@ struct AddFoodView: View {
                 analysis = try await ClaudeService.identifyFoods(description: mealText)
             }
 
-            // 2. Match against FNDDS
             let db = FNDDSDatabase.shared
             var matched: [MatchedFood] = []
             for food in analysis.foods {
@@ -130,7 +145,6 @@ struct AddFoodView: View {
                 return
             }
 
-            // 3. Parse optional meal time
             let mealDate: Date
             if let mealTimeString = analysis.mealTime {
                 let formatter = ISO8601DateFormatter()
@@ -138,7 +152,6 @@ struct AddFoodView: View {
                 if let parsed = formatter.date(from: mealTimeString) {
                     mealDate = parsed
                 } else {
-                    // Try without fractional seconds
                     formatter.formatOptions = [.withInternetDateTime]
                     mealDate = formatter.date(from: mealTimeString) ?? Date()
                 }
@@ -146,7 +159,6 @@ struct AddFoodView: View {
                 mealDate = Date()
             }
 
-            // 4. Save to HealthKit
             let totalNutrients = NutrientData.combined(matched.map(\.nutrients))
             let mealID = UUID()
             let sampleUUIDs = try await HealthKitService.shared.saveMeal(
@@ -155,7 +167,6 @@ struct AddFoodView: View {
                 date: mealDate
             )
 
-            // 5. Save to SwiftData
             let loggedFoods = matched.map { food in
                 LoggedFood(
                     name: food.identifiedName,
