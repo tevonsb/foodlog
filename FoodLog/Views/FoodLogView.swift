@@ -34,9 +34,9 @@ struct FoodLogView: View {
                 Group {
                     if entries.isEmpty && todayBeverages.isEmpty {
                         ContentUnavailableView(
-                            "No Meals Logged",
-                            systemImage: "fork.knife",
-                            description: Text("Tap + to log your first meal")
+                            "Nothing logged yet",
+                            systemImage: "fork.knife.circle",
+                            description: Text("Tap the + to add your first meal, or log water and coffee to get started.")
                         )
                     } else {
                         List {
@@ -87,38 +87,50 @@ struct FoodLogView: View {
                     Button {
                         Task { await logCoffee() }
                     } label: {
-                        Image(systemName: "cup.and.saucer.fill")
-                            .font(.title3.bold())
-                            .foregroundStyle(.white)
-                            .frame(width: 48, height: 48)
-                            .background(Color.brown)
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                        ZStack {
+                            Circle()
+                                .fill(.regularMaterial)
+                                .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 6)
+                            Image(systemName: "cup.and.saucer.fill")
+                                .font(.title3.weight(.semibold))
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(.brown)
+                        }
+                        .frame(width: 52, height: 52)
                     }
+                    .buttonStyle(.plain)
 
                     Button {
                         Task { await logWater() }
                     } label: {
-                        Image(systemName: "drop.fill")
-                            .font(.title3.bold())
-                            .foregroundStyle(.white)
-                            .frame(width: 48, height: 48)
-                            .background(Color.cyan)
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                        ZStack {
+                            Circle()
+                                .fill(.regularMaterial)
+                                .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 6)
+                            Image(systemName: "drop.fill")
+                                .font(.title3.weight(.semibold))
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(.cyan)
+                        }
+                        .frame(width: 52, height: 52)
                     }
+                    .buttonStyle(.plain)
 
                     Button {
                         showAddFood = true
                     } label: {
-                        Image(systemName: "plus")
-                            .font(.title2.bold())
-                            .foregroundStyle(.white)
-                            .frame(width: 60, height: 60)
-                            .background(Color.accentColor)
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.25), radius: 6, x: 0, y: 3)
+                        ZStack {
+                            Circle()
+                                .fill(.regularMaterial)
+                                .shadow(color: .black.opacity(0.25), radius: 14, x: 0, y: 8)
+                            Image(systemName: "plus")
+                                .font(.title.weight(.bold))
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(Color.accentColor)
+                        }
+                        .frame(width: 64, height: 64)
                     }
+                    .buttonStyle(.plain)
                 }
                 .padding(.trailing, 24)
                 .padding(.bottom, 24)
@@ -307,3 +319,4 @@ struct MealRow: View {
         }
     }
 }
+

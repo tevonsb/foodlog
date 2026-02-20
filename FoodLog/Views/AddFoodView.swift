@@ -7,12 +7,17 @@ struct AddFoodView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var mealText = ""
     @State private var isLogging = false
+    @State private var isAnalyzingImage = false
+    @Namespace private var bubbleNS
     @State private var errorMessage: String?
     @State private var showCamera = false
     @State private var capturedImageData: Data?
     @State private var submittedText: String?
     @State private var submittedImageData: Data?
     @State private var completedEntry: FoodEntry?
+
+    @State private var impactLight = UIImpactFeedbackGenerator(style: .light)
+    @State private var notify = UINotificationFeedbackGenerator()
 
     private var canLog: Bool {
         (!mealText.isEmpty || capturedImageData != nil) && !isLogging
@@ -42,6 +47,7 @@ struct AddFoodView: View {
                             .padding(8)
                         }
                         .padding(.horizontal)
+                        .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .scale.combined(with: .opacity)))
                     }
 
                     // Submitted message bubble (while loading or after completion)
@@ -65,14 +71,26 @@ struct AddFoodView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .trailing)
                         .padding(.horizontal)
+                        .matchedGeometryEffect(id: "bubble", in: bubbleNS)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
                     }
 
                     // Loading indicator
                     if isLogging {
-                        HStack(spacing: 6) {
-                            ProgressView()
-                                .controlSize(.small)
-                            Text("Searching nutrition database...")
+                        HStack(spacing: 10) {
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(LinearGradient(colors: [.gray.opacity(0.2), .gray.opacity(0.35), .gray.opacity(0.2)], startPoint: .leading, endPoint: .trailing))
+                                .frame(width: 80, height: 12)
+                                .overlay(
+                                    GeometryReader { geo in
+                                        Rectangle()
+                                            .fill(.white.opacity(0.35))
+                                            .frame(width: 30, height: 12)
+                                            .offset(x: isLogging ? geo.size.width : -30)
+                                            .animation(.linear(duration: 1.2).repeatForever(autoreverses: false), value: isLogging)
+                                    }
+                                )
+                            Text("Analyzing your meal…")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
@@ -87,11 +105,15 @@ struct AddFoodView: View {
                         } label: {
                             MealRow(entry: entry)
                                 .padding(12)
-                                .background(Color(.secondarySystemBackground))
+                                .background(
+                                    LinearGradient(colors: [Color(.secondarySystemBackground), Color(.secondarySystemBackground).opacity(0.8)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                                )
                                 .clipShape(RoundedRectangle(cornerRadius: 14))
+                                .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 6)
                         }
                         .buttonStyle(.plain)
                         .padding(.horizontal)
+                        .transition(.scale.combined(with: .opacity))
                     }
 
                     // Error message
@@ -104,57 +126,82 @@ struct AddFoodView: View {
 
                     // Empty state
                     if capturedImageData == nil && !isLogging && completedEntry == nil && submittedText == nil {
-                        VStack(spacing: 12) {
-                            Image(systemName: "camera.fill")
-                                .font(.system(size: 48))
-                                .foregroundStyle(.quaternary)
-                            Text("Take a photo of your meal")
+                        VStack(spacing: 10) {
+                            Image(systemName: "fork.knife.circle.fill")
+                                .font(.system(size: 56, weight: .regular))
+                                .foregroundStyle(Color.accentColor)
+                            Text("Log your next meal")
+                                .font(.headline)
+                            Text("Snap a photo or type a quick description. We'll identify foods and track your nutrition.")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.top, 80)
                     }
                 }
                 .padding(.top)
+                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: submittedText)
+                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: submittedImageData)
             }
 
             // Bottom input bar
             Divider()
             HStack(spacing: 12) {
                 Button {
+                    impactLight.impactOccurred()
                     showCamera = true
                 } label: {
                     Image(systemName: "camera.fill")
-                        .font(.title2)
+                        .font(.title3.weight(.semibold))
+                        .symbolRenderingMode(.hierarchical)
                         .foregroundStyle(Color.accentColor)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
 
                 TextField("Describe your meal...", text: $mealText, axis: .vertical)
                     .lineLimit(1...4)
                     .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 10)
                     .background(Color(.systemGray6))
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(Color.primary.opacity(0.06), lineWidth: 0.8))
 
                 Button {
+                    impactLight.impactOccurred()
                     Task { await logMeal() }
                 } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.largeTitle)
-                        .foregroundStyle(canLog ? Color.accentColor : Color(.systemGray4))
+                    Image(systemName: "paperplane.fill")
+                        .font(.title3.weight(.semibold))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(canLog ? Color.accentColor : Color.secondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                        .scaleEffect(canLog ? 1.0 : 0.98)
                 }
                 .disabled(!canLog)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(Color(.systemBackground))
+            .background(.bar)
         }
         .navigationTitle("Log Meal")
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(isPresented: $showCamera) {
             CameraView { imageData in
                 capturedImageData = imageData
+                submittedImageData = imageData
+                submittedText = nil
+                isLogging = true
+                errorMessage = nil
+                isAnalyzingImage = true
+                Task { await logMeal() }
+            }
+            .onAppear {
+                isAnalyzingImage = false
             }
         }
     }
@@ -163,14 +210,22 @@ struct AddFoodView: View {
         let currentText = mealText
         let currentImageData = capturedImageData
 
-        // Clear input immediately, show as sent bubble
-        mealText = ""
-        capturedImageData = nil
-        submittedText = currentText
-        submittedImageData = currentImageData
-        completedEntry = nil
-        isLogging = true
-        errorMessage = nil
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+            // Clear input immediately, show as sent bubble
+            mealText = ""
+            if let img = currentImageData {
+                // Already set by camera flow to show as bubble; ensure state consistent
+                submittedImageData = img
+                submittedText = nil
+            } else {
+                submittedText = currentText
+                submittedImageData = nil
+            }
+            capturedImageData = nil
+            completedEntry = nil
+            isLogging = true
+            errorMessage = nil
+        }
 
         do {
             let analysis: AgenticMealAnalysis
@@ -182,6 +237,7 @@ struct AddFoodView: View {
 
             guard !analysis.foods.isEmpty else {
                 errorMessage = "Could not identify any foods."
+                notify.notificationOccurred(.error)
                 mealText = currentText
                 capturedImageData = currentImageData
                 submittedText = nil
@@ -238,9 +294,11 @@ struct AddFoodView: View {
             try modelContext.save()
 
             completedEntry = entry
+            notify.notificationOccurred(.success)
             syncWidgetData()
         } catch {
             errorMessage = error.localizedDescription
+            notify.notificationOccurred(.error)
             mealText = currentText
             capturedImageData = currentImageData
             submittedText = nil
