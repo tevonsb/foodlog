@@ -337,9 +337,14 @@ struct FoodLogView: View {
             if !entry.healthKitSampleUUIDs.isEmpty {
                 try? await HealthKitService.shared.deleteMeal(sampleUUIDs: entry.healthKitSampleUUIDs)
             }
+            // Cascade-remove linked BeverageEntry
+            if let beverage = todayBeverages.first(where: { $0.linkedFoodEntryID == entry.id }) {
+                BeverageStore.remove(id: beverage.id)
+            }
             modelContext.delete(entry)
         }
         try? modelContext.save()
+        reloadBeverages()
         syncWidgetData()
     }
 
@@ -350,8 +355,17 @@ struct FoodLogView: View {
             if let uuid = beverage.healthKitSampleUUID {
                 try? await HealthKitService.shared.deleteBeverageSample(uuid: uuid, type: beverage.type)
             }
+            // Cascade-delete linked FoodEntry (and its HealthKit samples)
+            if let linkedID = beverage.linkedFoodEntryID,
+               let foodEntry = entries.first(where: { $0.id == linkedID }) {
+                if !foodEntry.healthKitSampleUUIDs.isEmpty {
+                    try? await HealthKitService.shared.deleteMeal(sampleUUIDs: foodEntry.healthKitSampleUUIDs)
+                }
+                modelContext.delete(foodEntry)
+            }
             BeverageStore.remove(id: beverage.id)
         }
+        try? modelContext.save()
         reloadBeverages()
         syncWidgetData()
     }
@@ -396,7 +410,8 @@ struct FoodLogView: View {
             type: .coffee, amount: 1,
             label: variant.displayName,
             caffeineMg: nutrients.caffeine,
-            trackedViaMeal: true
+            trackedViaMeal: true,
+            linkedFoodEntryID: foodEntry.id
         )
         BeverageStore.append(beverage)
 
@@ -470,7 +485,7 @@ private struct BeverageRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(isWater ? "Water" : (entry.label ?? "Coffee"))
                     .font(.subheadline.weight(.medium))
-                Text(isWater ? "\(Int(entry.amount))oz" : "\(Int(entry.caffeineMg ?? 95))mg caffeine")
+                Text(isWater ? "\(Int(entry.amount))oz" : "\(Int(entry.caffeineMg ?? 142))mg caffeine")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -572,24 +587,27 @@ private enum CoffeeVariant: CaseIterable {
         var n = NutrientData()
         switch self {
         case .black:
-            n.calories = 2
-            n.protein = 0.3
-            n.caffeine = 95
+            // 12 fl oz brewed coffee (~355mL)
+            n.calories = 4
+            n.protein = 0.4
+            n.caffeine = 142
         case .withCream:
-            n.calories = 54
-            n.protein = 0.6
+            // 12 fl oz brewed coffee + 1 tbsp heavy cream
+            n.calories = 56
+            n.protein = 0.7
             n.totalFat = 5.4
             n.saturatedFat = 3.4
             n.carbohydrates = 0.4
-            n.caffeine = 95
+            n.caffeine = 142
         case .latte:
+            // 16 fl oz, double shot espresso + steamed whole milk
             n.calories = 190
             n.protein = 13
             n.totalFat = 7
             n.saturatedFat = 4.5
             n.carbohydrates = 18
             n.sugar = 17
-            n.caffeine = 150
+            n.caffeine = 128
         }
         return n
     }
@@ -599,7 +617,7 @@ private enum CoffeeVariant: CaseIterable {
         return LoggedFood(
             name: displayName,
             matchedDescription: displayName,
-            grams: self == .latte ? 480 : 252,
+            grams: self == .latte ? 480 : 370,
             calories: n.calories ?? 0,
             protein: n.protein ?? 0,
             carbs: n.carbohydrates ?? 0,

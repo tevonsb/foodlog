@@ -14,8 +14,9 @@ struct BeverageEntry: Codable, Identifiable {
     let label: String?
     let caffeineMg: Double?
     let trackedViaMeal: Bool
+    let linkedFoodEntryID: UUID?
 
-    init(type: BeverageType, amount: Double, healthKitSampleUUID: String? = nil, label: String? = nil, caffeineMg: Double? = nil, trackedViaMeal: Bool = false) {
+    init(type: BeverageType, amount: Double, healthKitSampleUUID: String? = nil, label: String? = nil, caffeineMg: Double? = nil, trackedViaMeal: Bool = false, linkedFoodEntryID: UUID? = nil) {
         self.id = UUID()
         self.type = type
         self.timestamp = Date()
@@ -24,6 +25,7 @@ struct BeverageEntry: Codable, Identifiable {
         self.label = label
         self.caffeineMg = caffeineMg
         self.trackedViaMeal = trackedViaMeal
+        self.linkedFoodEntryID = linkedFoodEntryID
     }
 
     init(from decoder: Decoder) throws {
@@ -36,6 +38,7 @@ struct BeverageEntry: Codable, Identifiable {
         label = try c.decodeIfPresent(String.self, forKey: .label)
         caffeineMg = try c.decodeIfPresent(Double.self, forKey: .caffeineMg)
         trackedViaMeal = (try c.decodeIfPresent(Bool.self, forKey: .trackedViaMeal)) ?? false
+        linkedFoodEntryID = try c.decodeIfPresent(UUID.self, forKey: .linkedFoodEntryID)
     }
 
     /// Needs HealthKit sync only if it doesn't already have a sample AND isn't tracked via a FoodEntry meal.

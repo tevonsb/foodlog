@@ -121,10 +121,10 @@ final class HealthKitService {
         return sample.uuid.uuidString
     }
 
-    /// Log one coffee (~95mg caffeine) to HealthKit. Returns sample UUID.
+    /// Log one 12oz brewed coffee (~142mg caffeine) to HealthKit. Returns sample UUID.
     func logCoffee() async throws -> String? {
         guard let caffeineType = HKQuantityType.quantityType(forIdentifier: .dietaryCaffeine) else { return nil }
-        let quantity = HKQuantity(unit: .gramUnit(with: .milli), doubleValue: 95)
+        let quantity = HKQuantity(unit: .gramUnit(with: .milli), doubleValue: 142)
         let sample = HKQuantitySample(type: caffeineType, quantity: quantity, start: .now, end: .now)
         try await store.save(sample)
         return sample.uuid.uuidString
