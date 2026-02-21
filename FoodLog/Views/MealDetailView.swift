@@ -4,17 +4,10 @@ import SwiftData
 struct MealDetailView: View {
     let entry: FoodEntry
 
-    @Environment(\.modelContext) private var modelContext
-    @FocusState private var isAdjustFocused: Bool
-    @State private var adjustmentText = ""
-    @State private var isAdjusting = false
-    @State private var errorMessage: String?
-    @State private var adjustmentProgress: [ProgressItem] = []
-    @State private var adjustmentMessage: String?
-    @State private var sendPressed = false
+    @State private var showEdit = false
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        ZStack(alignment: .bottomTrailing) {
             ScrollView {
                 VStack(spacing: 0) {
                     heroHeader
@@ -22,17 +15,39 @@ struct MealDetailView: View {
                     foodCards
                     totalsSection
                     micronutrientsSection
-                    // Bottom padding for the floating input bar
                     Color.clear.frame(height: 80)
                 }
             }
-            .scrollDismissesKeyboard(.interactively)
 
-            adjustmentBar
+            editButton
         }
         .navigationTitle("Meal Details")
         .navigationBarTitleDisplayMode(.inline)
         .background(Color(.systemGroupedBackground))
+        .navigationDestination(isPresented: $showEdit) {
+            AddFoodView(editingEntry: entry)
+        }
+    }
+
+    // MARK: - Edit FAB
+
+    private var editButton: some View {
+        Button {
+            showEdit = true
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(.regularMaterial)
+                    .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 4)
+                Image(systemName: "pencil")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+            }
+            .frame(width: 48, height: 48)
+        }
+        .buttonStyle(DetailBounceButtonStyle())
+        .padding(.trailing, 20)
+        .padding(.bottom, 20)
     }
 
     // MARK: - Hero header
@@ -260,193 +275,6 @@ struct MealDetailView: View {
         }
     }
 
-    // MARK: - Adjustment bar
-
-    private var adjustmentBar: some View {
-        VStack(spacing: 0) {
-            // Progress & messages above the bar
-            if !adjustmentProgress.isEmpty || adjustmentMessage != nil || errorMessage != nil {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(adjustmentProgress) { item in
-                        HStack(spacing: 8) {
-                            Image(systemName: item.icon)
-                                .font(.caption)
-                                .foregroundStyle(item.color)
-                                .frame(width: 16)
-                            Text(item.text)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    if let msg = adjustmentMessage {
-                        HStack(alignment: .top, spacing: 6) {
-                            Image(systemName: "info.circle.fill")
-                                .foregroundStyle(.orange)
-                                .font(.caption)
-                            Text(msg)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    if let err = errorMessage {
-                        HStack(spacing: 6) {
-                            Image(systemName: "exclamationmark.circle.fill")
-                                .foregroundStyle(.red)
-                                .font(.caption)
-                            Text(err)
-                                .font(.caption)
-                                .foregroundStyle(.red)
-                        }
-                    }
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.ultraThinMaterial)
-            }
-
-            Divider()
-            HStack(alignment: .bottom, spacing: 10) {
-                TextField("Adjust meal...", text: $adjustmentText, axis: .vertical)
-                    .lineLimit(1...3)
-                    .focused($isAdjustFocused)
-                    .disabled(isAdjusting)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(Color(.systemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 20)
-                            .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-                    )
-
-                Button {
-                    sendPressed = true
-                    Task { await adjustMeal() }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                        sendPressed = false
-                    }
-                } label: {
-                    Group {
-                        if isAdjusting {
-                            ProgressView()
-                                .controlSize(.small)
-                                .frame(width: 32, height: 32)
-                        } else {
-                            Image(systemName: "arrow.up.circle.fill")
-                                .font(.system(size: 32))
-                                .symbolRenderingMode(.hierarchical)
-                                .foregroundStyle(
-                                    adjustmentText.isEmpty ? Color(.systemGray4) : Color.accentColor
-                                )
-                        }
-                    }
-                    .scaleEffect(sendPressed ? 0.8 : 1.0)
-                    .animation(.spring(response: 0.25, dampingFraction: 0.5), value: sendPressed)
-                }
-                .disabled(adjustmentText.isEmpty || isAdjusting)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(.bar)
-        }
-    }
-
-    // MARK: - Models
-
-    private struct ProgressItem: Identifiable {
-        let id = UUID()
-        let icon: String
-        let text: String
-        let color: Color
-    }
-
-    // MARK: - Adjust meal
-
-    private func adjustMeal() async {
-        isAdjusting = true
-        errorMessage = nil
-        adjustmentProgress = []
-        adjustmentMessage = nil
-
-        let stream = ClaudeService.adjustMeal(currentFoods: entry.foods, adjustment: adjustmentText)
-
-        for await event in stream {
-            switch event {
-            case .searching(let query):
-                withAnimation(.easeOut(duration: 0.25)) {
-                    adjustmentProgress.append(ProgressItem(
-                        icon: "magnifyingglass",
-                        text: "Searching for \(query)...",
-                        color: .secondary
-                    ))
-                }
-
-            case .searchResult(let query, let count):
-                withAnimation {
-                    if let idx = adjustmentProgress.lastIndex(where: { $0.text.contains(query) }) {
-                        adjustmentProgress[idx] = ProgressItem(
-                            icon: count > 0 ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
-                            text: count > 0 ? "Found \(count) matches for \(query)" : "No matches for \(query)",
-                            color: count > 0 ? .green : .orange
-                        )
-                    }
-                }
-
-            case .estimating(let foodName):
-                withAnimation {
-                    adjustmentProgress.append(ProgressItem(
-                        icon: "brain",
-                        text: "Estimating nutrition for \(foodName)",
-                        color: .purple
-                    ))
-                }
-
-            case .thinking:
-                break
-
-            case .completed(let meals):
-                guard let meal = meals.first, !meal.foods.isEmpty else {
-                    errorMessage = "Could not process the adjustment."
-                    break
-                }
-
-                if let msg = meal.message, !msg.isEmpty {
-                    withAnimation { adjustmentMessage = msg }
-                }
-
-                let processed = MealProcessing.processAnalysis(meal, fallbackDate: entry.timestamp)
-
-                do {
-                    if !entry.healthKitSampleUUIDs.isEmpty {
-                        try await HealthKitService.shared.deleteMeal(sampleUUIDs: entry.healthKitSampleUUIDs)
-                    }
-
-                    let mealID = UUID()
-                    let newSampleUUIDs = try await HealthKitService.shared.saveMeal(
-                        nutrients: processed.nutrients,
-                        mealID: mealID,
-                        date: processed.mealDate
-                    )
-
-                    entry.foods = processed.foods
-                    entry.nutrients = processed.nutrients
-                    entry.healthKitSampleUUIDs = newSampleUUIDs
-                    entry.timestamp = processed.mealDate
-                    try modelContext.save()
-
-                    adjustmentText = ""
-                    isAdjustFocused = false
-                } catch {
-                    errorMessage = error.localizedDescription
-                }
-
-            case .failed(let error):
-                errorMessage = error.localizedDescription
-            }
-        }
-
-        isAdjusting = false
-    }
 }
 
 // MARK: - Macro stat (big 4)
@@ -494,5 +322,15 @@ private struct FoodMacroPill: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(color.opacity(0.1), in: Capsule())
+    }
+}
+
+// MARK: - Bounce button style
+
+private struct DetailBounceButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.88 : 1.0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }

@@ -35,6 +35,12 @@ struct FoodLogView: View {
         todayBeverages.filter { $0.type == .coffee }.count
     }
 
+    private static let dayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEEE, MMM d"
+        return f
+    }()
+
     /// Group entries by day for display
     private var groupedEntries: [(key: String, entries: [FoodEntry])] {
         let calendar = Calendar.current
@@ -44,9 +50,7 @@ struct FoodLogView: View {
             } else if calendar.isDateInYesterday(entry.timestamp) {
                 return "Yesterday"
             } else {
-                let formatter = DateFormatter()
-                formatter.dateFormat = "EEEE, MMM d"
-                return formatter.string(from: entry.timestamp)
+                return Self.dayFormatter.string(from: entry.timestamp)
             }
         }
         // Sort groups: Today first, then by most recent entry
@@ -315,18 +319,6 @@ struct FoodLogView: View {
 
     private func reloadBeverages() {
         todayBeverages = BeverageStore.loadToday().sorted { $0.timestamp > $1.timestamp }
-    }
-
-    private func deleteEntries(at offsets: IndexSet) async {
-        for index in offsets {
-            let entry = entries[index]
-            if !entry.healthKitSampleUUIDs.isEmpty {
-                try? await HealthKitService.shared.deleteMeal(sampleUUIDs: entry.healthKitSampleUUIDs)
-            }
-            modelContext.delete(entry)
-        }
-        try? modelContext.save()
-        syncWidgetData()
     }
 
     private func deleteGroupedEntries(group: [FoodEntry], at offsets: IndexSet) async {

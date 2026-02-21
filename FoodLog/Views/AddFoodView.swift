@@ -49,7 +49,22 @@ struct AddFoodView: View {
         }
         .navigationTitle(editingEntry != nil ? "Edit Meal" : "Log Meal")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { isInputFocused = true }
+        .onAppear {
+            isInputFocused = true
+            if let editingEntry, activeEntry == nil {
+                activeEntry = editingEntry
+                sessionEntries = [editingEntry]
+
+                let foodSummary = editingEntry.foods.map { food in
+                    "\(food.name) — \(Int(food.grams))g, \(Int(food.calories)) kcal"
+                }.joined(separator: "\n")
+
+                conversation.append(.agentMessage(
+                    id: UUID(),
+                    text: "\(editingEntry.mealDescription)\n\(foodSummary)"
+                ))
+            }
+        }
         .fullScreenCover(isPresented: $showCamera) {
             CameraView(
                 onImageCaptured: { imageData in
@@ -65,21 +80,6 @@ struct AddFoodView: View {
             if let barcode = scannedBarcode {
                 scannedBarcode = nil
                 Task { await processBarcode(barcode) }
-            }
-        }
-        .onAppear {
-            if let editingEntry, activeEntry == nil {
-                activeEntry = editingEntry
-                sessionEntries = [editingEntry]
-
-                let foodSummary = editingEntry.foods.map { food in
-                    "\(food.name) — \(Int(food.grams))g, \(Int(food.calories)) kcal"
-                }.joined(separator: "\n")
-
-                conversation.append(.agentMessage(
-                    id: UUID(),
-                    text: "\(editingEntry.mealDescription)\n\(foodSummary)"
-                ))
             }
         }
     }
@@ -290,7 +290,7 @@ struct AddFoodView: View {
     private var floatingMealCards: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                ForEach(Array(sessionEntries.enumerated()), id: \.offset) { index, entry in
+                ForEach(Array(sessionEntries.enumerated()), id: \.offset) { _, entry in
                     floatingMealCard(for: entry)
                         .transition(.asymmetric(
                             insertion: .scale(scale: 0.8).combined(with: .opacity),
