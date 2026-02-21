@@ -49,6 +49,7 @@ struct AddFoodView: View {
         }
         .navigationTitle(editingEntry != nil ? "Edit Meal" : "Log Meal")
         .navigationBarTitleDisplayMode(.inline)
+        .glassNavigationBar()
         .onAppear {
             isInputFocused = true
             if let editingEntry, activeEntry == nil {
@@ -367,29 +368,9 @@ struct AddFoodView: View {
         VStack(spacing: 0) {
             Divider()
             HStack(alignment: .bottom, spacing: 10) {
-                Button {
+                GlassCircleButton(icon: "camera.fill", iconColor: .primary, size: 40) {
                     impactLight.impactOccurred()
                     showCamera = true
-                } label: {
-                    ZStack {
-                        if #available(iOS 26.0, *) {
-                            Circle()
-                                .glassEffect(.regular.interactive(), in: .circle)
-                        } else {
-                            Circle()
-                                .background(.thinMaterial, in: Circle())
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.primary.opacity(0.12), lineWidth: 1)
-                                )
-                        }
-                        Image(systemName: "camera.fill")
-                            .font(.title3.weight(.semibold))
-                            .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(.primary)
-                    }
-                    .frame(width: 40, height: 40)
-                    .contentShape(Circle())
                 }
 
                 TextField(activeEntry != nil ? "Edit this meal..." : "Describe your meal...", text: $mealText, axis: .vertical)
@@ -400,36 +381,21 @@ struct AddFoodView: View {
                     .textFieldStyle(.plain)
                     .liquidGlassInputStyle(cornerRadius: 20)
 
-                Button {
+                GlassCircleButton(icon: "arrow.up", iconColor: canSend ? Color.primary : .secondary, size: 40) {
                     sendButtonPressed = true
                     impactMedium.impactOccurred()
                     Task { await sendMessage() }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                         sendButtonPressed = false
                     }
-                } label: {
-                    let tint = canSend ? Color.accentColor : Color(.systemGray4)
-                    ZStack {
-                        if #available(iOS 26.0, *) {
-                            Circle()
-                                .glassEffect(.regular.tint(tint).interactive(), in: .circle)
-                        } else {
-                            Circle()
-                                .fill(tint)
-                        }
-                        Image(systemName: "arrow.up")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.white)
-                    }
-                    .frame(width: 40, height: 40)
-                    .scaleEffect(sendButtonPressed ? 0.86 : 1.0)
-                    .animation(.spring(response: 0.25, dampingFraction: 0.5), value: sendButtonPressed)
                 }
+                .scaleEffect(sendButtonPressed ? 0.86 : 1.0)
+                .animation(.spring(response: 0.25, dampingFraction: 0.5), value: sendButtonPressed)
+                .opacity(canSend ? 1.0 : 0.45)
                 .disabled(!canSend)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(.bar)
         }
     }
 

@@ -23,6 +23,7 @@ struct MealDetailView: View {
         }
         .navigationTitle("Meal Details")
         .navigationBarTitleDisplayMode(.inline)
+        .glassNavigationBar()
         .background(Color(.systemGroupedBackground))
         .navigationDestination(isPresented: $showEdit) {
             AddFoodView(editingEntry: entry)
@@ -32,27 +33,9 @@ struct MealDetailView: View {
     // MARK: - Edit FAB
 
     private var editButton: some View {
-        Button {
+        GlassCircleButton(icon: "pencil", iconColor: .primary, size: 48, showShadow: true) {
             showEdit = true
-        } label: {
-            ZStack {
-                if #available(iOS 26.0, *) {
-                    Circle()
-                        .glassEffect(.regular.interactive(), in: .circle)
-                        .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 4)
-                } else {
-                    Circle()
-                        .background(.regularMaterial, in: Circle())
-                        .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 4)
-                }
-                Image(systemName: "pencil")
-                    .font(.title3.weight(.semibold))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.primary)
-            }
-            .frame(width: 48, height: 48)
         }
-        .buttonStyle(DetailBounceButtonStyle())
         .padding(.trailing, 20)
         .padding(.bottom, 20)
     }
@@ -328,16 +311,6 @@ private struct FoodMacroPill: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(color.opacity(0.1), in: Capsule())
-    }
-}
-
-// MARK: - Bounce button style
-
-private struct DetailBounceButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.88 : 1.0)
-            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
 

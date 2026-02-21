@@ -78,6 +78,7 @@ struct FoodLogView: View {
             }
             .navigationTitle("Nutritious")
             .navigationBarTitleDisplayMode(.large)
+            .glassNavigationBar()
             .navigationDestination(for: FoodEntry.self) { entry in
                 MealDetailView(entry: entry)
             }
@@ -93,7 +94,6 @@ struct FoodLogView: View {
                             .font(.system(size: 17, weight: .semibold))
                             .symbolRenderingMode(.hierarchical)
                     }
-                    .liquidGlassButtonStyle()
                 }
             }
             .sheet(isPresented: $showSettings) {
@@ -102,7 +102,6 @@ struct FoodLogView: View {
                         .toolbar {
                             ToolbarItem(placement: .confirmationAction) {
                                 Button("Done") { showSettings = false }
-                                    .liquidGlassButtonStyle()
                             }
                         }
                 }
@@ -230,17 +229,27 @@ struct FoodLogView: View {
 
     // MARK: - FABs
 
+    @ViewBuilder
     private var fabStack: some View {
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: 12) {
+                fabButtons
+            }
+            .padding(.trailing, 20)
+            .padding(.bottom, 20)
+        } else {
+            fabButtons
+                .padding(.trailing, 20)
+                .padding(.bottom, 20)
+        }
+    }
+
+    private var fabButtons: some View {
         VStack(spacing: 12) {
-            glassFabButton(
-                icon: "cup.and.saucer.fill",
-                tint: .brown,
-                size: 44,
-                action: {
-                    impactLight.impactOccurred()
-                    Task { await logCoffee() }
-                }
-            )
+            GlassCircleButton(icon: "cup.and.saucer.fill", iconColor: .brown, size: 44, showShadow: true) {
+                impactLight.impactOccurred()
+                Task { await logCoffee() }
+            }
             .contextMenu {
                 ForEach(CoffeeVariant.allCases, id: \.displayName) { variant in
                     Button {
@@ -254,77 +263,19 @@ struct FoodLogView: View {
             .opacity(fabsVisible ? 1 : 0)
             .offset(y: fabsVisible ? 0 : 20)
 
-            glassFabButton(
-                icon: "drop.fill",
-                tint: .cyan,
-                size: 44,
-                action: {
-                    impactLight.impactOccurred()
-                    Task { await logWater() }
-                }
-            )
+            GlassCircleButton(icon: "drop.fill", iconColor: .cyan, size: 44, showShadow: true) {
+                impactLight.impactOccurred()
+                Task { await logWater() }
+            }
             .opacity(fabsVisible ? 1 : 0)
             .offset(y: fabsVisible ? 0 : 20)
 
-            Button {
+            GlassCircleButton(icon: "plus", iconColor: .primary, size: 60, showShadow: true) {
                 impactLight.impactOccurred()
                 showAddFood = true
-            } label: {
-                glassIconView(
-                    icon: "plus",
-                    tint: Color.accentColor,
-                    size: 60,
-                    showShadow: true
-                )
             }
-            .buttonStyle(BounceButtonStyle())
             .opacity(fabsVisible ? 1 : 0)
             .offset(y: fabsVisible ? 0 : 20)
-        }
-        .padding(.trailing, 20)
-        .padding(.bottom, 20)
-    }
-
-    // MARK: - Floating action button
-
-    @ViewBuilder
-    private func glassFabButton(icon: String, tint: Color, size: CGFloat, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            glassIconView(icon: icon, tint: tint, size: size, showShadow: false)
-        }
-        .buttonStyle(BounceButtonStyle())
-    }
-
-    @ViewBuilder
-    private func glassIconView(icon: String, tint: Color, size: CGFloat, showShadow: Bool) -> some View {
-        let iconSize = size * 0.45
-
-        if #available(iOS 26.0, *) {
-            ZStack {
-                Circle()
-                    .frame(width: size, height: size)
-                    .glassEffect(.regular.interactive(), in: .circle)
-                    .shadow(color: showShadow ? Color.black.opacity(0.18) : .clear, radius: 12, x: 0, y: 6)
-                Image(systemName: icon)
-                    .font(.system(size: iconSize, weight: .semibold))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.primary)
-            }
-        } else {
-            ZStack {
-                Circle()
-                    .frame(width: size, height: size)
-                    .background(.thinMaterial, in: Circle())
-                    .overlay(
-                        Circle()
-                            .strokeBorder(Color.primary.opacity(0.18), lineWidth: 1)
-                    )
-                    .shadow(color: showShadow ? Color.black.opacity(0.18) : .clear, radius: 12, x: 0, y: 6)
-                Image(systemName: icon)
-                    .font(.system(size: iconSize, weight: .semibold))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.primary)
-            }
         }
     }
 
@@ -333,10 +284,10 @@ struct FoodLogView: View {
     private func toastView(_ message: String) -> some View {
         VStack {
             toastContent(message: message)
-                .padding(.top, 12)
+                .padding(.top, 8)
             Spacer()
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .padding(.horizontal, 16)
         .allowsHitTesting(false)
     }
@@ -364,8 +315,8 @@ struct FoodLogView: View {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
             toastMessage = message
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
-            withAnimation(.easeOut(duration: 0.3)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            withAnimation(.easeOut(duration: 0.5)) {
                 toastMessage = nil
             }
         }
@@ -670,16 +621,6 @@ private enum CoffeeVariant: CaseIterable {
             fat: n.totalFat ?? 0,
             source: "estimate"
         )
-    }
-}
-
-// MARK: - Bounce button style
-
-private struct BounceButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.88 : 1.0)
-            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
 
