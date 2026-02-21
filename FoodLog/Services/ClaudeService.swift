@@ -32,13 +32,13 @@ struct ClaudeService {
 
     private static let searchToolDefinition: [String: Any] = [
         "name": "search_food_database",
-        "description": "Search the USDA FNDDS food database. Returns top 5 matches with macros per 100g and available portion sizes. Use this to find nutrition data for specific foods.",
+        "description": "Search the USDA FNDDS food database. The database contains both individual ingredients (e.g. 'Chicken breast, grilled', 'Rice, white, cooked') AND composite/prepared foods (e.g. 'Roast beef sandwich on white', 'Pizza, cheese'). Returns top 5 matches with macros per 100g and available portion sizes. Search ONE food concept at a time — never combine unrelated foods in a single query (search 'yogurt' and 'berries' separately, not 'yogurt berries').",
         "input_schema": [
             "type": "object",
             "properties": [
                 "query": [
                     "type": "string",
-                    "description": "Search query for the food database. Use common food names. The database uses descriptions like 'Chicken breast, roasted' or 'Rice, white, cooked'. Try simple terms first (e.g. 'beef meatball' not 'homemade Italian-style beef meatballs')."
+                    "description": "Search query for a SINGLE food item. Use USDA naming style: 'Food, preparation method' (e.g. 'Chicken breast, roasted' or 'Rice, white, cooked'). For composite items, search the whole thing first (e.g. 'roast beef sandwich'). Try simple, common terms."
                 ]
             ],
             "required": ["query"]
@@ -48,50 +48,94 @@ struct ClaudeService {
     // MARK: - System prompts
 
     private static var agenticSystemPrompt: String {
-        let now = ISO8601DateFormatter().string(from: Date())
+        let formatter = ISO8601DateFormatter()
+        formatter.timeZone = TimeZone.current
+        let now = formatter.string(from: Date())
         return """
         You are a food nutrition assistant. The current date/time is \(now).
 
         ## CRITICAL RULE: ALWAYS provide results
         You must ALWAYS provide nutrition data for every food item the user mentions. If the database \
-        has no good match after 2+ searches, you MUST estimate using your nutrition knowledge. Set \
+        has no good match after 2 searches, you MUST estimate using your nutrition knowledge. Set \
         source to "estimate" with food_code and matched_description as null. Every identifiable food \
         MUST appear in your response. Never refuse or return an empty foods array for identifiable food.
 
         If the user's input contains no identifiable food (e.g. "hello" or "how are you"), return:
         {"foods": [], "message": "I didn't find any food items to log. Try describing what you ate or take a photo of your meal."}
 
-        You have access to a USDA FNDDS food database via the search_food_database tool. Your job is to:
-        1. Identify each food item in the user's meal
-        2. Search the database for each food to get accurate nutrition data
-        3. Evaluate whether the database matches are reasonable
-        4. Return final nutrition values for each food
+        ## Database and Search Strategy
 
-        ## How to use the database
-        - Search for each food individually (e.g. "chicken breast", "white rice", "beef meatball")
-        - The database returns results per 100g with available portion sizes
-        - Database descriptions follow USDA format: "Food, preparation method" (e.g. "Chicken breast, grilled")
-        - Try simple, common terms first. If results are poor, try alternative terms.
-        - You can make multiple searches in a single response by calling the tool multiple times.
+        You have access to a USDA FNDDS food database via the search_food_database tool. This database contains:
+        - **Individual ingredients** (e.g. "Chicken breast, grilled", "Rice, white, cooked", "Beef, roast")
+        - **Composite/prepared foods** (e.g. "Roast beef sandwich on white", "Pizza, cheese", "Burrito, beef and bean")
 
-        ## Evaluating matches
-        - CHECK that the matched food makes sense for what the user ate
-        - CHECK that macros are plausible. For example:
-          - Meat/poultry/fish: typically 20-30g protein per 100g
-          - Cooked grains/pasta: typically 3-5g protein per 100g
-          - Vegetables: typically 1-3g protein per 100g
-          - Cheese: typically 20-28g protein per 100g
-        - If a match looks wrong (e.g. a soup returned for "meatballs"), search again with different terms
-        - If no good match exists, ESTIMATE using your own knowledge (set source to "estimate")
+        ### How to search efficiently:
+        1. **Search for ONE food concept per query** — never combine unrelated foods in a single search
+           - GOOD: search("yogurt"), then search("blueberries")
+           - BAD: search("yogurt berries") or search("chicken and rice")
 
-        ## When to override with estimates
-        - Database returned obviously wrong food (e.g. "Soup, meatball" for plain meatballs)
-        - No results found after trying 2+ queries
-        - Complex/mixed dishes where individual ingredients are hard to isolate
-        - Restaurant or branded foods not in USDA database
-        When estimating, use your nutrition knowledge to provide realistic values.
+        2. **Try composite items FIRST** when appropriate:
+           - For sandwiches, burgers, pizza, burritos → search the whole item first
+           - Example: "roast beef sandwich" → search("roast beef sandwich") before decomposing
+           - If the composite search returns good matches, use it. If not, decompose into ingredients.
 
-        ## Multi-meal support
+        3. **Call multiple tools in parallel** — you can issue multiple search_food_database calls in ONE response
+           - This is CRITICAL for efficiency within your iteration budget
+           - Example: search("chicken breast"), search("white rice"), search("broccoli") all in the same turn
+
+        4. **Search terms should be simple and specific**:
+           - Use USDA naming style: "Food, preparation method"
+           - Try variations if first search fails: "strawberry" vs "strawberries", "beef roast" vs "roast beef"
+
+        ## Portion Size Guidance
+
+        Use realistic portion estimates (in grams):
+        - Sandwich: 200-300g total
+        - Burger with bun: 250-350g
+        - Pizza slice: 100-150g
+        - Yogurt cup/serving: 170-225g
+        - Banana (medium): 120g
+        - Apple (medium): 180g
+        - Chicken breast: 150-200g
+        - Cup of cooked rice/pasta: 150-200g
+        - Tablespoon of oil/butter: 15g
+        - Handful of nuts: 30g
+        - Cup of berries: 150g
+
+        ## Evaluating Matches — SENSE CHECK REQUIRED
+
+        **Before accepting any database match, verify it makes sense:**
+
+        ### Macro ranges per 100g (reject matches outside these ranges):
+        - Meat/poultry/fish (cooked): 150-300 kcal, 20-35g protein, 3-20g fat
+        - Cooked grains/pasta: 100-150 kcal, 3-5g protein, 0-3g fat
+        - Vegetables (non-starchy): 15-50 kcal, 1-3g protein, 0-1g fat
+        - Cheese: 250-400 kcal, 20-28g protein, 20-35g fat
+        - Bread: 250-280 kcal, 7-10g protein, 2-5g fat
+        - Sandwich (composite): 180-250 kcal, 10-18g protein, 5-12g fat
+        - Yogurt: 50-150 kcal, 3-10g protein, 0-8g fat
+
+        ### Total meal sanity (after calculating final portions):
+        - A sandwich meal: 350-700 kcal
+        - A yogurt with fruit: 150-300 kcal
+        - A chicken and rice meal: 400-800 kcal
+        - A banana: 100-120 kcal
+
+        **If a match looks wrong** (e.g. "Soup, beef" returned for "roast beef"), search with different terms.
+        **If macros are implausible** (e.g. roast beef showing 50 kcal/100g), reject it and search again or estimate.
+
+        ## When to Override with Estimates
+
+        Use source: "estimate" when:
+        - Database returned obviously wrong food (wrong type entirely)
+        - No results found after trying 2 different search queries
+        - Complex homemade or restaurant dishes not in USDA database
+        - Branded foods not in database
+
+        When estimating, use your nutrition knowledge to provide realistic values based on the sense-check ranges above.
+
+        ## Multi-meal Support
+
         If the user describes multiple DISTINCT meals or eating occasions (e.g. "I had oatmeal for \
         breakfast and a burger for lunch"), return them as separate meals:
         {
@@ -115,44 +159,72 @@ struct ClaudeService {
           "meal_time": "2025-01-15T08:00:00Z"
         }
 
+        ## Setting Meal Times
+
+        When determining meal_time, use the current date/time provided above and apply these rules:
+
+        1. **If the user describes PAST meals** (e.g., "I had breakfast", "I ate lunch"):
+           - Breakfast: Set to today at 08:00 in the user's timezone
+           - Lunch: Set to today at 12:30 in the user's timezone
+           - Dinner: Set to today at 18:30 in the user's timezone
+           - Snack: Set to a reasonable time based on context (mid-morning ~10:30, afternoon ~15:00, evening ~20:00)
+
+        2. **If the user describes a meal they're eating NOW** (e.g., "I'm eating", "I just ate"):
+           - Use the current time from the timestamp above
+
+        3. **Use the user's timezone from the provided timestamp** - do NOT use UTC for meal times
+
+        4. **Examples with proper times**:
+           - Current time: 2025-01-15T14:23:00-08:00 (2:23 PM PST)
+           - User says "I had a bagel for breakfast and chicken for lunch"
+           - Breakfast meal_time: 2025-01-15T08:00:00-08:00
+           - Lunch meal_time: 2025-01-15T12:30:00-08:00
+
         ## Communication
+
         If you need to tell the user something (e.g. you estimated a food, or something was ambiguous), \
         include a "message" field in your response:
         {"foods": [...], "message": "I estimated the nutrition for your homemade sauce since it wasn't in the database."}
 
-        ## Final response format
+        ## Final Response Format
+
         After you have gathered all nutrition data, respond with ONLY a JSON object (no markdown, no explanation):
         {
           "foods": [
             {
-              "food_name": "Beef meatballs",
-              "grams": 90,
-              "calories": 207,
-              "protein": 16.2,
-              "fat": 13.5,
-              "carbs": 5.4,
-              "fiber": 0.3,
-              "sugar": 1.2,
+              "food_name": "Roast beef sandwich",
+              "grams": 250,
+              "calories": 485,
+              "protein": 32.5,
+              "fat": 18.8,
+              "carbs": 45.0,
+              "fiber": 2.1,
+              "sugar": 5.2,
               "source": "database",
-              "food_code": 27111500,
-              "matched_description": "Meatball, beef"
+              "food_code": 27513010,
+              "matched_description": "Roast beef sandwich on white"
             }
           ],
-          "meal_time": "2025-01-15T08:00:00Z"
+          "meal_time": "2025-01-15T12:30:00Z"
         }
 
         Rules:
-        - Break composite meals into individual ingredients
-        - Estimate realistic portion sizes in grams
-        - "source" must be "database" (with food_code and matched_description) or "estimate" (food_code null, matched_description null)
+        - Search for ONE food concept per query (never combine unrelated foods)
+        - Call multiple search tools in parallel when analyzing a meal with multiple foods
+        - Try composite items first, decompose only if no good match
+        - Estimate realistic portion sizes in grams using the guidance above
+        - Sense-check all matches against the macro ranges provided
+        - "source" must be "database" (with food_code and matched_description) or "estimate" (both null)
         - Scale the per-100g values to the actual portion grams in your final answer
-        - If the user mentions a time context, include meal_time as ISO8601. Otherwise omit it.
+        - Set meal_time based on meal context (breakfast, lunch, dinner) using today's date with realistic times
         - Round nutrient values to 1 decimal place
         """
     }
 
     private static var agenticAdjustmentPrompt: String {
-        let now = ISO8601DateFormatter().string(from: Date())
+        let formatter = ISO8601DateFormatter()
+        formatter.timeZone = TimeZone.current
+        let now = formatter.string(from: Date())
         return """
         You are a food nutrition assistant. The current date/time is \(now).
 
@@ -262,9 +334,9 @@ struct ClaudeService {
 
     static func identifyFoods(description: String) -> AsyncStream<AgentEvent> {
         let messages: [[String: Any]] = [
-            ["role": "user", "content": "Identify the foods and their nutrition in this meal: \(description)"]
+            ["role": "user", "content": "Identify the foods and their nutrition in this meal: \(description). You can call the search tool multiple times in a single response for efficiency."]
         ]
-        return makeStream(messages: messages, system: agenticSystemPrompt, model: haikuModel)
+        return makeStream(messages: messages, system: agenticSystemPrompt, model: sonnetModel)
     }
 
     static func identifyFoods(imageData: Data) -> AsyncStream<AgentEvent> {
@@ -312,7 +384,7 @@ struct ClaudeService {
             User says: \(adjustment)
             """]
         ]
-        return makeStream(messages: messages, system: agenticAdjustmentPrompt, model: haikuModel)
+        return makeStream(messages: messages, system: agenticAdjustmentPrompt, model: sonnetModel)
     }
 
     // MARK: - Stream builder
@@ -359,7 +431,7 @@ struct ClaudeService {
         continuation: AsyncStream<AgentEvent>.Continuation
     ) async {
         var conversationMessages = messages
-        let maxIterations = 4
+        let maxIterations = 8
 
         for iteration in 0..<maxIterations {
             let result: (contentBlocks: [[String: Any]], stopReason: String)
@@ -435,7 +507,24 @@ struct ClaudeService {
 
                 do {
                     let analysis = try parseAgenticResponse(text: textContent)
-                    let meals = analysis.resolvedMeals
+                    var meals = analysis.resolvedMeals
+
+                    // Post-processing sanity check
+                    meals = meals.map { meal in
+                        var warnings: [String] = []
+                        for food in meal.foods {
+                            if let warning = sanityCheckFood(food) {
+                                warnings.append(warning)
+                            }
+                        }
+                        if !warnings.isEmpty {
+                            let warningMsg = warnings.joined(separator: " ")
+                            let existingMsg = meal.message ?? ""
+                            let newMessage = existingMsg.isEmpty ? warningMsg : "\(existingMsg) \(warningMsg)"
+                            return AgenticMealResult(mealLabel: meal.mealLabel, mealTime: meal.mealTime, foods: meal.foods, message: newMessage)
+                        }
+                        return meal
+                    }
 
                     // Emit estimating events for foods that ended up as estimates
                     for meal in meals {
@@ -452,7 +541,43 @@ struct ClaudeService {
             }
         }
 
-        // Max iterations reached — try to extract partial result from last response
+        // Max iterations reached — force final resolution
+        print("ClaudeService: Max iterations reached, forcing final resolution")
+        conversationMessages.append([
+            "role": "user",
+            "content": "You must now respond with your final JSON. For any foods you haven't found in the database, estimate using your nutrition knowledge with source: 'estimate'. Provide a complete response now."
+        ])
+
+        do {
+            let (contentBlocks, _) = try await callClaudeAPIWithRetry(
+                messages: conversationMessages,
+                system: system,
+                tools: [], // No tools — force end_turn
+                model: model
+            )
+
+            let textContent = contentBlocks
+                .compactMap { $0["text"] as? String }
+                .joined()
+
+            if !textContent.isEmpty {
+                let analysis = try parseAgenticResponse(text: textContent)
+                let meals = analysis.resolvedMeals
+
+                for meal in meals {
+                    for food in meal.foods where food.source == "estimate" {
+                        continuation.yield(.estimating(foodName: food.foodName))
+                    }
+                }
+
+                continuation.yield(.completed(meals))
+                return
+            }
+        } catch {
+            print("ClaudeService: Forced resolution failed: \(error)")
+        }
+
+        // Last resort fallback
         continuation.yield(.failed(ClaudeError.apiError("Analysis took too many steps. Please try a simpler description.")))
     }
 
@@ -595,6 +720,25 @@ struct ClaudeService {
     }
 
     // MARK: - Response parsing
+
+    private static func sanityCheckFood(_ food: AgenticFoodResult) -> String? {
+        guard food.grams > 0 else { return nil }
+
+        let caloriesPer100g = (food.calories / food.grams) * 100
+        let proteinPer100g = (food.protein / food.grams) * 100
+
+        // Flag suspiciously low calories
+        if caloriesPer100g < 30 && food.grams > 100 {
+            return "⚠️ \(food.foodName) seems low in calories."
+        }
+
+        // Flag suspiciously high protein (likely wrong match)
+        if proteinPer100g > 50 {
+            return "⚠️ \(food.foodName) protein level seems unusually high."
+        }
+
+        return nil
+    }
 
     private static func parseAgenticResponse(text: String) throws -> AgenticMealAnalysis {
         // Strip markdown code fences if present

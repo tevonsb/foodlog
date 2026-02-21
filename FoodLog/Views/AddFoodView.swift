@@ -14,14 +14,13 @@ struct AddFoodView: View {
 
     // Processing state
     @State private var isLogging = false
-    @State private var progressEvents: [ProgressItem] = []
+    @State private var currentProgress: [ProgressItem] = []
     @State private var errorMessage: String?
 
-    // Conversation state
-    @State private var submittedMessages: [ChatBubble] = []
-    @State private var completedEntries: [FoodEntry] = []
+    // Conversation state (unified)
+    @State private var conversation: [ConversationItem] = []
+    @State private var sessionEntries: [FoodEntry] = []  // Only entries from THIS session
     @State private var activeEntry: FoodEntry?
-    @State private var agentMessage: String?
 
     // Haptics
     @State private var impactLight = UIImpactFeedbackGenerator(style: .light)
@@ -31,9 +30,16 @@ struct AddFoodView: View {
         (!mealText.isEmpty || capturedImageData != nil) && !isLogging
     }
 
+    private var pinnedCardHeight: CGFloat {
+        sessionEntries.isEmpty ? 0 : 60
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             scrollContent
+            if !sessionEntries.isEmpty {
+                pinnedMealCards
+            }
             inputBar
         }
         .navigationTitle("Log Meal")
@@ -42,7 +48,6 @@ struct AddFoodView: View {
             CameraView(
                 onImageCaptured: { imageData in
                     capturedImageData = imageData
-                    // Auto-submit photo immediately
                     Task { await sendMessage() }
                 },
                 onBarcodeScanned: { barcode in
@@ -64,65 +69,73 @@ struct AddFoodView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: 16) {
-                    photoPreview
-                    chatBubbles
-                    progressSection
-                    agentMessageView
-                    resultCards
-                    errorView
-                    emptyState
+                    // Conversation timeline (threaded messages)
+                    ForEach(conversation) { item in
+                        conversationItemView(item)
+                    }
+
+                    // Live progress for current interaction
+                    if isLogging {
+                        liveProgressView
+                    }
+
+                    // Error view
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .padding(.horizontal)
+                    }
+
+                    // Empty state
+                    if conversation.isEmpty && !isLogging {
+                        VStack(spacing: 10) {
+                            Image(systemName: "fork.knife.circle.fill")
+                                .font(.system(size: 56, weight: .regular))
+                                .foregroundStyle(Color.accentColor)
+                            Text("Log your next meal")
+                                .font(.headline)
+                            Text("Snap a photo or type a quick description. We'll identify foods and track your nutrition.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 80)
+                    }
+
+                    // Spacer so pinned cards don't overlap
+                    Color.clear.frame(height: pinnedCardHeight)
+
                     Color.clear.frame(height: 1).id("bottom")
                 }
                 .padding(.top)
             }
-            .onChange(of: progressEvents.count) {
+            .onChange(of: conversation.count) {
                 withAnimation { proxy.scrollTo("bottom") }
             }
-            .onChange(of: completedEntries.count) {
+            .onChange(of: isLogging) {
                 withAnimation { proxy.scrollTo("bottom") }
             }
         }
     }
 
-    // MARK: - Subviews
+    // MARK: - Conversation item view
 
     @ViewBuilder
-    private var photoPreview: some View {
-        if let imageData = capturedImageData, let uiImage = UIImage(data: imageData) {
-            ZStack(alignment: .topTrailing) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxHeight: 300)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-
-                Button {
-                    capturedImageData = nil
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title2)
-                        .symbolRenderingMode(.palette)
-                        .foregroundStyle(.white, .black.opacity(0.5))
-                }
-                .padding(8)
-            }
-            .padding(.horizontal)
-            .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .scale.combined(with: .opacity)))
-        }
-    }
-
-    @ViewBuilder
-    private var chatBubbles: some View {
-        ForEach(submittedMessages) { bubble in
+    private func conversationItemView(_ item: ConversationItem) -> some View {
+        switch item {
+        case .userMessage(let id, let text, let imageData):
             VStack(alignment: .trailing, spacing: 8) {
-                if let imgData = bubble.imageData, let uiImage = UIImage(data: imgData) {
+                if let imgData = imageData, let uiImage = UIImage(data: imgData) {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFit()
                         .frame(maxHeight: 200)
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
-                if let text = bubble.text, !text.isEmpty {
+                if let text, !text.isEmpty {
                     Text(text)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
@@ -134,14 +147,10 @@ struct AddFoodView: View {
             .frame(maxWidth: .infinity, alignment: .trailing)
             .padding(.horizontal)
             .transition(.move(edge: .trailing).combined(with: .opacity))
-        }
-    }
 
-    @ViewBuilder
-    private var progressSection: some View {
-        if !progressEvents.isEmpty {
+        case .agentProgress(let id, let items):
             VStack(alignment: .leading, spacing: 6) {
-                ForEach(progressEvents) { item in
+                ForEach(items) { item in
                     HStack(spacing: 8) {
                         Image(systemName: item.icon)
                             .font(.caption)
@@ -152,109 +161,127 @@ struct AddFoodView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                if isLogging {
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.systemGray6))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal)
+            .transition(.opacity)
+
+        case .agentMessage(let id, let text):
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.systemGray6))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .padding(.horizontal)
+                .transition(.opacity)
+        }
+    }
+
+    // MARK: - Live progress view
+
+    private var liveProgressView: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if !currentProgress.isEmpty {
+                ForEach(currentProgress) { item in
                     HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.small)
+                        Image(systemName: item.icon)
+                            .font(.caption)
+                            .foregroundStyle(item.color)
                             .frame(width: 16)
-                        Text("Analyzing...")
+                        Text(item.text)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal)
-            .transition(.opacity)
-        } else if isLogging {
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 ProgressView()
                     .controlSize(.small)
-                Text("Analyzing your meal...")
+                    .frame(width: 16)
+                Text("Analyzing...")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal)
         }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.systemGray6))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal)
     }
 
-    @ViewBuilder
-    private var agentMessageView: some View {
-        if let msg = agentMessage {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "info.circle.fill")
-                    .foregroundStyle(.orange)
-                Text(msg)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+    // MARK: - Pinned meal cards
+
+    private var pinnedMealCards: some View {
+        VStack(spacing: 0) {
+            Divider()
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(sessionEntries) { entry in
+                        pinnedMealCard(for: entry)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal)
         }
+        .background(Color(.systemGroupedBackground))
     }
 
-    @ViewBuilder
-    private var resultCards: some View {
-        ForEach(0..<completedEntries.count, id: \.self) { index in
-            resultCard(for: completedEntries[index], index: index)
-        }
-    }
-
-    private func resultCard(for entry: FoodEntry, index: Int) -> some View {
+    private func pinnedMealCard(for entry: FoodEntry) -> some View {
         NavigationLink {
             MealDetailView(entry: entry)
         } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                if completedEntries.count > 1 {
-                    Text("Meal \(index + 1)")
-                        .font(.caption)
-                        .foregroundStyle(Color.accentColor)
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.mealDescription)
+                        .font(.subheadline)
                         .fontWeight(.semibold)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    HStack(spacing: 8) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "flame.fill")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.orange)
+                            Text("\(Int(entry.nutrients.calories ?? 0))")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                        }
+                        HStack(spacing: 4) {
+                            Image(systemName: "circle.fill")
+                                .font(.system(size: 6))
+                                .foregroundStyle(.blue)
+                            Text("\(Int(entry.nutrients.protein ?? 0))g")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                        }
+                    }
+                    .foregroundStyle(.secondary)
                 }
-                MealRow(entry: entry)
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.tertiary)
             }
-            .padding(12)
-            .background(
-                LinearGradient(colors: [Color(.secondarySystemBackground), Color(.secondarySystemBackground).opacity(0.8)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(Color(.systemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(Color(.separator), lineWidth: 0.5)
             )
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 6)
         }
         .buttonStyle(.plain)
-        .padding(.horizontal)
-        .transition(.scale.combined(with: .opacity))
     }
 
-    @ViewBuilder
-    private var errorView: some View {
-        if let errorMessage {
-            Text(errorMessage)
-                .font(.caption)
-                .foregroundStyle(.red)
-                .padding(.horizontal)
-        }
-    }
-
-    @ViewBuilder
-    private var emptyState: some View {
-        if capturedImageData == nil && !isLogging && completedEntries.isEmpty && submittedMessages.isEmpty {
-            VStack(spacing: 10) {
-                Image(systemName: "fork.knife.circle.fill")
-                    .font(.system(size: 56, weight: .regular))
-                    .foregroundStyle(Color.accentColor)
-                Text("Log your next meal")
-                    .font(.headline)
-                Text("Snap a photo or type a quick description. We'll identify foods and track your nutrition.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.top, 80)
-        }
-    }
+    // MARK: - Input bar
 
     private var inputBar: some View {
         VStack(spacing: 0) {
@@ -302,10 +329,18 @@ struct AddFoodView: View {
 
     // MARK: - Models
 
-    private struct ChatBubble: Identifiable {
-        let id = UUID()
-        let text: String?
-        let imageData: Data?
+    private enum ConversationItem: Identifiable {
+        case userMessage(id: UUID, text: String?, imageData: Data?)
+        case agentProgress(id: UUID, items: [ProgressItem])
+        case agentMessage(id: UUID, text: String)
+
+        var id: UUID {
+            switch self {
+            case .userMessage(let id, _, _): return id
+            case .agentProgress(let id, _): return id
+            case .agentMessage(let id, _): return id
+            }
+        }
     }
 
     private struct ProgressItem: Identifiable {
@@ -315,19 +350,24 @@ struct AddFoodView: View {
         let color: Color
     }
 
-    // MARK: - Send message (routes to create or adjust)
+    // MARK: - Send message
 
     private func sendMessage() async {
         let currentText = mealText
         let currentImageData = capturedImageData
 
-        mealText = ""
-        capturedImageData = nil
-        submittedMessages.append(ChatBubble(text: currentText.isEmpty ? nil : currentText, imageData: currentImageData))
-        progressEvents = []
+        // Clear input immediately
+        await MainActor.run {
+            mealText = ""
+            capturedImageData = nil
+        }
+
+        // Add user message to conversation
+        conversation.append(.userMessage(id: UUID(), text: currentText.isEmpty ? nil : currentText, imageData: currentImageData))
+
+        currentProgress = []
         isLogging = true
         errorMessage = nil
-        agentMessage = nil
 
         if let activeEntry {
             await adjustExistingEntry(entry: activeEntry, text: currentText)
@@ -335,17 +375,22 @@ struct AddFoodView: View {
             await createNewEntries(text: currentText, imageData: currentImageData)
         }
 
+        // Freeze current progress into conversation
+        if !currentProgress.isEmpty {
+            conversation.append(.agentProgress(id: UUID(), items: currentProgress))
+        }
+
         isLogging = false
+        currentProgress = []
     }
 
     // MARK: - Barcode processing
 
     private func processBarcode(_ barcode: String) async {
-        submittedMessages.append(ChatBubble(text: "Scanned barcode: \(barcode)", imageData: nil))
-        progressEvents = []
+        conversation.append(.userMessage(id: UUID(), text: "Scanned barcode: \(barcode)", imageData: nil))
+        currentProgress = []
         isLogging = true
         errorMessage = nil
-        agentMessage = nil
 
         guard let product = BarcodeDatabase.shared.lookup(barcode: barcode) else {
             errorMessage = "Product not found in database. Try taking a photo instead."
@@ -353,7 +398,7 @@ struct AddFoodView: View {
             return
         }
 
-        progressEvents.append(ProgressItem(
+        currentProgress.append(ProgressItem(
             icon: "barcode",
             text: "Found: \(product.brand ?? "") \(product.description)",
             color: .green
@@ -374,7 +419,11 @@ struct AddFoodView: View {
             notify.notificationOccurred(.error)
         }
 
+        if !currentProgress.isEmpty {
+            conversation.append(.agentProgress(id: UUID(), items: currentProgress))
+        }
         isLogging = false
+        currentProgress = []
     }
 
     // MARK: - Create new entries
@@ -403,21 +452,21 @@ struct AddFoodView: View {
     private func handleProgressEvent(_ event: AgentEvent) {
         switch event {
         case .searching(let query):
-            progressEvents.append(ProgressItem(
+            currentProgress.append(ProgressItem(
                 icon: "magnifyingglass",
                 text: "Searching for \(query)...",
                 color: .secondary
             ))
         case .searchResult(let query, let count):
-            if let idx = progressEvents.lastIndex(where: { $0.text.contains(query) }) {
-                progressEvents[idx] = ProgressItem(
+            if let idx = currentProgress.lastIndex(where: { $0.text.contains(query) }) {
+                currentProgress[idx] = ProgressItem(
                     icon: count > 0 ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
                     text: count > 0 ? "Found \(count) matches for \(query)" : "No matches for \(query)",
                     color: count > 0 ? .green : .orange
                 )
             }
         case .estimating(let foodName):
-            progressEvents.append(ProgressItem(
+            currentProgress.append(ProgressItem(
                 icon: "brain",
                 text: "Estimating nutrition for \(foodName)",
                 color: .purple
@@ -427,13 +476,13 @@ struct AddFoodView: View {
         }
     }
 
-    // MARK: - Process completed meals into FoodEntries
+    // MARK: - Process completed meals
 
     private func processCompletedMeals(_ meals: [AgenticMealResult], text: String, imageData: Data?) async {
         guard !meals.isEmpty, meals.contains(where: { !$0.foods.isEmpty }) else {
             let msg = meals.first?.message
             if let msg, !msg.isEmpty {
-                agentMessage = msg
+                conversation.append(.agentMessage(id: UUID(), text: msg))
             } else {
                 errorMessage = "Could not identify any foods."
             }
@@ -442,7 +491,7 @@ struct AddFoodView: View {
 
         let messages = meals.compactMap(\.message).filter { !$0.isEmpty }
         if !messages.isEmpty {
-            agentMessage = messages.joined(separator: " ")
+            conversation.append(.agentMessage(id: UUID(), text: messages.joined(separator: " ")))
         }
 
         for (index, meal) in meals.enumerated() {
@@ -458,14 +507,7 @@ struct AddFoodView: View {
                     date: processed.mealDate
                 )
 
-                let description: String
-                if let label = meal.mealLabel {
-                    description = label
-                } else if !text.isEmpty {
-                    description = text
-                } else {
-                    description = "Meal from photo"
-                }
+                let description = generateMealDescription(from: meal, fallbackText: text)
 
                 let entry = FoodEntry(
                     timestamp: processed.mealDate,
@@ -478,7 +520,7 @@ struct AddFoodView: View {
                 modelContext.insert(entry)
                 try modelContext.save()
 
-                completedEntries.append(entry)
+                sessionEntries.append(entry)
                 activeEntry = entry
                 syncWidgetData()
             } catch {
@@ -512,7 +554,7 @@ struct AddFoodView: View {
         }
 
         if let msg = meal.message, !msg.isEmpty {
-            agentMessage = msg
+            conversation.append(.agentMessage(id: UUID(), text: msg))
         }
 
         let processed = MealProcessing.processAnalysis(meal, fallbackDate: entry.timestamp)
@@ -535,9 +577,11 @@ struct AddFoodView: View {
             entry.timestamp = processed.mealDate
             try modelContext.save()
 
-            if let idx = completedEntries.firstIndex(where: { $0.id == entry.id }) {
-                completedEntries[idx] = entry
+            // Update in sessionEntries
+            if let idx = sessionEntries.firstIndex(where: { $0.id == entry.id }) {
+                sessionEntries[idx] = entry
             }
+
             syncWidgetData()
         } catch {
             errorMessage = error.localizedDescription
@@ -545,6 +589,28 @@ struct AddFoodView: View {
     }
 
     // MARK: - Helpers
+
+    private func generateMealDescription(from meal: AgenticMealResult, fallbackText: String) -> String {
+        // Use meal label if provided (e.g., "Breakfast", "Lunch")
+        if let label = meal.mealLabel, !label.isEmpty {
+            return label
+        }
+
+        // Create a smart summary from the first 2-3 foods
+        let foodNames = meal.foods.prefix(3).map { $0.foodName }
+        if !foodNames.isEmpty {
+            let summary = foodNames.joined(separator: ", ")
+            // Truncate if too long
+            if summary.count > 45 {
+                let truncated = String(summary.prefix(42)) + "..."
+                return truncated
+            }
+            return summary
+        }
+
+        // Fallback to user's input text or default
+        return fallbackText.isEmpty ? "Meal" : fallbackText
+    }
 
     private func syncWidgetData() {
         let entries = (try? modelContext.fetch(FetchDescriptor<FoodEntry>())) ?? []
