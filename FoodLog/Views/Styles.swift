@@ -153,15 +153,6 @@ extension View {
     func liquidGlassButtonStyle(prominent: Bool = false) -> some View {
         modifier(LiquidGlassButtonStyle(prominent: prominent))
     }
-
-    @ViewBuilder
-    func glassNavigationBar() -> some View {
-        if #available(iOS 26.0, *) {
-            self.toolbarBackgroundVisibility(.hidden, for: .navigationBar)
-        } else {
-            self
-        }
-    }
 }
 
 // MARK: - Glass Circle Button
@@ -187,7 +178,6 @@ struct GlassCircleButton: View {
                     .frame(width: size, height: size)
             }
             .glassEffect(glass.interactive(), in: .circle)
-            .shadow(color: showShadow ? Color.black.opacity(shadowOpacity) : .clear, radius: shadowRadius, x: 0, y: 6)
         } else {
             Button(action: action) {
                 ZStack {

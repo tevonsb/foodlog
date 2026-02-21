@@ -109,34 +109,37 @@ struct MediumWidgetView: View {
     let entry: NutrientsEntry
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 12) {
             // Left side: stats
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 // Row 1: Cal, Protein, Fiber
-                HStack(spacing: 14) {
-                    InlineStat(icon: "flame.fill", value: "\(Int(entry.nutrients.calories))", label: "Cal", color: .orange)
-                    InlineStat(icon: "p.circle.fill", value: "\(Int(entry.nutrients.protein))g", label: "Protein", color: .blue)
-                    InlineStat(icon: "leaf.fill", value: "\(Int(entry.nutrients.fiber))g", label: "Fiber", color: .green)
+                HStack(spacing: 16) {
+                    PrimaryStat(icon: "flame.fill", value: "\(Int(entry.nutrients.calories))", color: .orange)
+                    PrimaryStat(icon: "p.circle.fill", value: "\(Int(entry.nutrients.protein))g", color: .blue)
+                    PrimaryStat(icon: "leaf.fill", value: "\(Int(entry.nutrients.fiber))g", color: .green)
                 }
 
                 // Row 2: Water, Coffee
-                HStack(spacing: 14) {
-                    InlineStat(icon: "drop.fill", value: "\(Int(entry.nutrients.waterOz))oz", label: "Water", color: .cyan)
-                    InlineStat(icon: "cup.and.saucer.fill", value: "\(entry.nutrients.coffees)", label: "Coffee", color: .brown)
+                HStack(spacing: 16) {
+                    PrimaryStat(icon: "drop.fill", value: "\(Int(entry.nutrients.waterOz))oz", color: .cyan)
+                    PrimaryStat(icon: "cup.and.saucer.fill", value: "\(entry.nutrients.coffees)", color: .brown)
                 }
 
-                // Row 3: Secondary macros
-                HStack(spacing: 12) {
+                Spacer(minLength: 0)
+
+                // Row 3: Secondary macros (keep labels)
+                HStack(spacing: 10) {
                     BottomMacro(value: "\(Int(entry.nutrients.sugar))g", label: "Sugar")
                     BottomMacro(value: "\(Int(entry.nutrients.fat))g", label: "Fat")
                     BottomMacro(value: "\(Int(entry.nutrients.carbs))g", label: "Carbs")
                     BottomMacro(value: "\(Int(entry.nutrients.cholesterol))mg", label: "Chol")
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Right side: round action buttons
-            VStack(spacing: 10) {
+            Spacer(minLength: 0)
+
+            // Right side: action buttons
+            VStack(spacing: 8) {
                 Button(intent: LogWaterIntent()) {
                     RoundBtn(icon: "drop.fill", color: .cyan)
                 }
@@ -148,7 +151,7 @@ struct MediumWidgetView: View {
                 .buttonStyle(.plain)
 
                 Link(destination: URL(string: "nutritiousai://add-food")!) {
-                    RoundBtn(icon: "plus", color: .accentColor)
+                    RoundBtn(icon: "plus", color: .green)
                 }
             }
         }
@@ -159,25 +162,21 @@ struct MediumWidgetView: View {
     }
 }
 
-private struct InlineStat: View {
+private struct PrimaryStat: View {
     @Environment(\.widgetRenderingMode) private var renderingMode
     let icon: String
     let value: String
-    let label: String
     let color: Color
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 5) {
             Image(systemName: icon)
-                .font(.system(size: 9, weight: .semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(renderingMode == .fullColor ? color : .primary)
                 .widgetAccentable()
             Text(value)
-                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .font(.system(size: 20, weight: .bold, design: .rounded))
                 .widgetAccentable()
-            Text(label)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.secondary)
         }
     }
 }
@@ -187,20 +186,12 @@ private struct RoundBtn: View {
     let color: Color
 
     var body: some View {
-        if #available(iOS 26.0, *) {
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 36, height: 36)
-                .glassEffect(.regular.tint(color), in: .circle)
-                .widgetAccentable()
-        } else {
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 36, height: 36)
-                .background(color, in: Circle())
-        }
+        Image(systemName: icon)
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: 36, height: 36)
+            .background(color.opacity(0.85), in: Circle())
+            .widgetAccentable()
     }
 }
 

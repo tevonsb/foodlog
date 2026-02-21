@@ -5,6 +5,9 @@ import WidgetKit
 
 struct AddFoodView: View {
     var editingEntry: FoodEntry?
+    var initialText: String = ""
+    var initialImageData: Data? = nil
+    var initialBarcode: String? = nil
 
     @Environment(\.modelContext) private var modelContext
 
@@ -14,6 +17,7 @@ struct AddFoodView: View {
     @State private var capturedImageData: Data?
     @State private var scannedBarcode: String?
     @FocusState private var isInputFocused: Bool
+    @State private var hasAutoSent = false
 
     // Processing state
     @State private var isLogging = false
@@ -49,9 +53,7 @@ struct AddFoodView: View {
         }
         .navigationTitle(editingEntry != nil ? "Edit Meal" : "Log Meal")
         .navigationBarTitleDisplayMode(.inline)
-        .glassNavigationBar()
         .onAppear {
-            isInputFocused = true
             if let editingEntry, activeEntry == nil {
                 activeEntry = editingEntry
                 sessionEntries = [editingEntry]
@@ -64,6 +66,17 @@ struct AddFoodView: View {
                     id: UUID(),
                     text: "\(editingEntry.mealDescription)\n\(foodSummary)"
                 ))
+                isInputFocused = true
+            } else if let barcode = initialBarcode, !hasAutoSent {
+                hasAutoSent = true
+                Task { await processBarcode(barcode) }
+            } else if (!initialText.isEmpty || initialImageData != nil) && !hasAutoSent {
+                hasAutoSent = true
+                mealText = initialText
+                capturedImageData = initialImageData
+                Task { await sendMessage() }
+            } else {
+                isInputFocused = true
             }
         }
         .fullScreenCover(isPresented: $showCamera) {

@@ -23,7 +23,6 @@ struct MealDetailView: View {
         }
         .navigationTitle("Meal Details")
         .navigationBarTitleDisplayMode(.inline)
-        .glassNavigationBar()
         .background(Color(.systemGroupedBackground))
         .navigationDestination(isPresented: $showEdit) {
             AddFoodView(editingEntry: entry)

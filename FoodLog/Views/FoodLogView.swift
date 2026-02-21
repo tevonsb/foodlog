@@ -12,12 +12,24 @@ struct FoodLogView: View {
     @State private var showSettings = false
     @State private var showAddFood = false
     @State private var todayBeverages: [BeverageEntry] = []
-    @State private var fabsVisible = false
     @State private var toastMessage: String?
+
+    // Input bar state
+    @State private var mealText = ""
+    @State private var pendingText = ""
+    @State private var pendingImageData: Data?
+    @State private var pendingBarcode: String?
+    @State private var showCamera = false
+    @FocusState private var isInputFocused: Bool
 
     // Haptics
     @State private var impactLight = UIImpactFeedbackGenerator(style: .light)
+    @State private var impactMedium = UIImpactFeedbackGenerator(style: .medium)
     @State private var notify = UINotificationFeedbackGenerator()
+
+    private var canSend: Bool {
+        !mealText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     private var todayEntries: [FoodEntry] {
         entries.filter { Calendar.current.isDateInToday($0.timestamp) }
@@ -63,11 +75,8 @@ struct FoodLogView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .bottomTrailing) {
+            ZStack {
                 mainContent
-
-                // Floating action buttons
-                fabStack
 
                 // Toast overlay
                 if let message = toastMessage {
@@ -76,14 +85,16 @@ struct FoodLogView: View {
                         .zIndex(2)
                 }
             }
+            .safeAreaInset(edge: .bottom) {
+                inputBar
+            }
             .navigationTitle("Nutritious")
             .navigationBarTitleDisplayMode(.large)
-            .glassNavigationBar()
             .navigationDestination(for: FoodEntry.self) { entry in
                 MealDetailView(entry: entry)
             }
             .navigationDestination(isPresented: $showAddFood) {
-                AddFoodView()
+                AddFoodView(initialText: pendingText, initialImageData: pendingImageData, initialBarcode: pendingBarcode)
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -107,12 +118,24 @@ struct FoodLogView: View {
                 }
             }
         }
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraView(
+                onImageCaptured: { imageData in
+                    pendingImageData = imageData
+                    pendingText = ""
+                    showAddFood = true
+                },
+                onBarcodeScanned: { barcode in
+                    pendingBarcode = barcode
+                    pendingText = ""
+                    pendingImageData = nil
+                    showAddFood = true
+                }
+            )
+        }
         .onAppear {
             reloadBeverages()
             syncWidgetData()
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.2)) {
-                fabsVisible = true
-            }
         }
         .onChange(of: entries.count) {
             syncWidgetData()
@@ -128,6 +151,13 @@ struct FoodLogView: View {
                 deepLinkAddFood = false
             }
         }
+        .onChange(of: showAddFood) { _, isShowing in
+            if !isShowing {
+                pendingText = ""
+                pendingImageData = nil
+                pendingBarcode = nil
+            }
+        }
     }
 
     // MARK: - Main content
@@ -138,7 +168,7 @@ struct FoodLogView: View {
             ContentUnavailableView(
                 "Nothing logged yet",
                 systemImage: "fork.knife.circle",
-                description: Text("Tap + to add your first meal, or log water and coffee to get started.")
+                description: Text("Type a meal below to get started, or tap the camera to snap a photo.")
             )
         } else {
             List {
@@ -227,56 +257,102 @@ struct FoodLogView: View {
         .padding(.vertical, 2)
     }
 
-    // MARK: - FABs
+    // MARK: - Input bar
 
     @ViewBuilder
-    private var fabStack: some View {
+    private var inputBar: some View {
         if #available(iOS 26.0, *) {
-            GlassEffectContainer(spacing: 12) {
-                fabButtons
+            GlassEffectContainer(spacing: 8) {
+                inputBarButtons
             }
-            .padding(.trailing, 20)
-            .padding(.bottom, 20)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
         } else {
-            fabButtons
-                .padding(.trailing, 20)
-                .padding(.bottom, 20)
+            inputBarButtons
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial, ignoresSafeAreaEdges: .bottom)
         }
     }
 
-    private var fabButtons: some View {
-        VStack(spacing: 12) {
-            GlassCircleButton(icon: "cup.and.saucer.fill", iconColor: .primary, size: 48, tint: .brown.opacity(0.35), showShadow: true) {
+    private var inputBarButtons: some View {
+        HStack(alignment: .bottom, spacing: 10) {
+            GlassCircleButton(icon: "camera.fill", iconColor: .primary, size: 40) {
                 impactLight.impactOccurred()
-                Task { await logCoffee() }
+                showCamera = true
             }
-            .contextMenu {
-                ForEach(CoffeeVariant.allCases, id: \.displayName) { variant in
-                    Button {
-                        impactLight.impactOccurred()
-                        Task { await logCoffeeVariant(variant) }
-                    } label: {
-                        Label(variant.displayName, systemImage: variant.icon)
-                    }
-                }
-            }
-            .opacity(fabsVisible ? 1 : 0)
-            .offset(y: fabsVisible ? 0 : 20)
 
-            GlassCircleButton(icon: "drop.fill", iconColor: .primary, size: 48, tint: .cyan.opacity(0.35), showShadow: true) {
+            TextField("Describe your meal...", text: $mealText, axis: .vertical)
+                .lineLimit(1...4)
+                .focused($isInputFocused)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .textFieldStyle(.plain)
+                .liquidGlassInputStyle(cornerRadius: 20)
+                .onSubmit { sendFromMainScreen() }
+
+            drinkMenu
+
+            GlassCircleButton(icon: "arrow.up", iconColor: canSend ? .primary : .secondary, size: 40) {
+                impactMedium.impactOccurred()
+                sendFromMainScreen()
+            }
+            .opacity(canSend ? 1.0 : 0.45)
+            .disabled(!canSend)
+        }
+    }
+
+    private var drinkMenu: some View {
+        Menu {
+            Button {
                 impactLight.impactOccurred()
                 Task { await logWater() }
+            } label: {
+                Label("Water (8oz)", systemImage: "drop.fill")
             }
-            .opacity(fabsVisible ? 1 : 0)
-            .offset(y: fabsVisible ? 0 : 20)
-
-            GlassCircleButton(icon: "plus", iconColor: .white, size: 58, tint: .accentColor, prominent: true, showShadow: true) {
-                impactLight.impactOccurred()
-                showAddFood = true
+            Divider()
+            ForEach(CoffeeVariant.allCases, id: \.displayName) { variant in
+                Button {
+                    impactLight.impactOccurred()
+                    if variant == .black {
+                        Task { await logCoffee() }
+                    } else {
+                        Task { await logCoffeeVariant(variant) }
+                    }
+                } label: {
+                    Label(variant.displayName, systemImage: variant.icon)
+                }
             }
-            .opacity(fabsVisible ? 1 : 0)
-            .offset(y: fabsVisible ? 0 : 20)
+        } label: {
+            drinkMenuLabel
         }
+    }
+
+    @ViewBuilder
+    private var drinkMenuLabel: some View {
+        if #available(iOS 26.0, *) {
+            Image(systemName: "mug.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(width: 40, height: 40)
+                .glassEffect(.regular.interactive(), in: .circle)
+        } else {
+            Image(systemName: "mug.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(width: 40, height: 40)
+                .background(.thinMaterial, in: Circle())
+                .overlay(Circle().strokeBorder(Color.primary.opacity(0.18), lineWidth: 1))
+        }
+    }
+
+    private func sendFromMainScreen() {
+        guard canSend else { return }
+        pendingText = mealText.trimmingCharacters(in: .whitespacesAndNewlines)
+        pendingImageData = nil
+        mealText = ""
+        isInputFocused = false
+        showAddFood = true
     }
 
     // MARK: - Toast
@@ -303,7 +379,6 @@ struct FoodLogView: View {
         if #available(iOS 26.0, *) {
             base
                 .glassEffect(.regular, in: .rect(cornerRadius: 14))
-                .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 6)
         } else {
             base
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
