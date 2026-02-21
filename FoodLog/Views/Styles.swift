@@ -91,13 +91,29 @@ extension View {
 
 // MARK: - Liquid Glass Styles
 
+@available(iOS 26.0, *)
+private extension Glass {
+    static var prominent: Glass {
+        .regular
+    }
+}
+
 private struct LiquidGlassInputStyle: ViewModifier {
     let cornerRadius: CGFloat
     let tint: Color?
 
+    @available(iOS 26.0, *)
+    private var glassStyle: Glass {
+        if let tint {
+            return .regular.tint(tint)
+        }
+        return .regular
+    }
+
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
             content
+                .glassEffect(glassStyle, in: .rect(cornerRadius: cornerRadius))
         } else {
             content
                 .background(.thinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
@@ -155,10 +171,13 @@ struct GlassCircleButton: View {
     let iconColor: Color
     let size: CGFloat
     var tint: Color? = nil
+    var prominent: Bool = false
     var showShadow: Bool = false
     let action: () -> Void
 
     var body: some View {
+        let shadowOpacity: Double = prominent ? 0.24 : 0.18
+        let shadowRadius: CGFloat = prominent ? 16 : 12
         if #available(iOS 26.0, *) {
             let glass = tint.map { Glass.regular.tint($0) } ?? .regular
             Button(action: action) {
@@ -168,7 +187,7 @@ struct GlassCircleButton: View {
                     .frame(width: size, height: size)
             }
             .glassEffect(glass.interactive(), in: .circle)
-            .shadow(color: showShadow ? Color.black.opacity(0.18) : .clear, radius: 12, x: 0, y: 6)
+            .shadow(color: showShadow ? Color.black.opacity(shadowOpacity) : .clear, radius: shadowRadius, x: 0, y: 6)
         } else {
             Button(action: action) {
                 ZStack {
@@ -178,9 +197,9 @@ struct GlassCircleButton: View {
                         .background(.thinMaterial, in: Circle())
                         .overlay(
                             Circle()
-                                .strokeBorder(Color.primary.opacity(0.18), lineWidth: 1)
+                                .strokeBorder(Color.primary.opacity(prominent ? 0.24 : 0.18), lineWidth: 1)
                         )
-                        .shadow(color: showShadow ? Color.black.opacity(0.18) : .clear, radius: 12, x: 0, y: 6)
+                        .shadow(color: showShadow ? Color.black.opacity(shadowOpacity) : .clear, radius: shadowRadius, x: 0, y: 6)
                     Image(systemName: icon)
                         .font(.system(size: size * 0.45, weight: .semibold))
                         .symbolRenderingMode(.hierarchical)

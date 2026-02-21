@@ -366,9 +366,8 @@ struct AddFoodView: View {
 
     private var inputBar: some View {
         VStack(spacing: 0) {
-            Divider()
             HStack(alignment: .bottom, spacing: 10) {
-                GlassCircleButton(icon: "camera.fill", iconColor: .primary, size: 40) {
+                GlassCircleButton(icon: "camera.fill", iconColor: .primary, size: 40, showShadow: true) {
                     impactLight.impactOccurred()
                     showCamera = true
                 }
@@ -381,7 +380,7 @@ struct AddFoodView: View {
                     .textFieldStyle(.plain)
                     .liquidGlassInputStyle(cornerRadius: 20)
 
-                GlassCircleButton(icon: "arrow.up", iconColor: canSend ? Color.primary : .secondary, size: 40) {
+                GlassCircleButton(icon: "arrow.up", iconColor: canSend ? Color.primary : .secondary, size: 40, showShadow: true) {
                     sendButtonPressed = true
                     impactMedium.impactOccurred()
                     Task { await sendMessage() }
@@ -397,6 +396,7 @@ struct AddFoodView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
         }
+        .background(.ultraThinMaterial, ignoresSafeAreaEdges: .bottom)
     }
 
     // MARK: - Models

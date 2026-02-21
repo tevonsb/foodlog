@@ -198,13 +198,13 @@ struct MealDetailView: View {
                     .padding(.vertical, 20)
             } else {
                 if !vitamins.isEmpty {
-                    microGroup(title: "Vitamins", items: vitamins)
+                    microGroup(title: "Vitamins", icon: "leaf.fill", tint: .green, items: vitamins)
                 }
                 if !minerals.isEmpty {
-                    microGroup(title: "Minerals", items: minerals)
+                    microGroup(title: "Minerals", icon: "bolt.fill", tint: .orange, items: minerals)
                 }
                 if !other.isEmpty {
-                    microGroup(title: "Other", items: other)
+                    microGroup(title: "Other", icon: "drop.fill", tint: .cyan, items: other)
                 }
             }
         }
@@ -212,32 +212,9 @@ struct MealDetailView: View {
         .padding(.bottom, 8)
     }
 
-    private func microGroup(title: String, items: [(NutrientData.NutrientMapping, Double)]) -> some View {
-        DisclosureGroup {
-            VStack(spacing: 0) {
-                ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                    MacroRow(label: item.0.displayName, value: item.1, unit: item.0.displayUnit)
-                    if index < items.count - 1 {
-                        Divider().padding(.leading, 16)
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Text(title)
-                    .font(.subheadline.weight(.medium))
-                Text("\(items.count)")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color(.systemGray5), in: Capsule())
-            }
-        }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 16)
-        .cardSurface(cornerRadius: 14, background: Color(.secondarySystemGroupedBackground), strokeOpacity: 0.06, shadowOpacity: 0.02)
-        .padding(.horizontal, 16)
+    private func microGroup(title: String, icon: String, tint: Color, items: [(NutrientData.NutrientMapping, Double)]) -> some View {
+        MicronutrientGroup(title: title, icon: icon, tint: tint, items: items)
+            .padding(.horizontal, 16)
     }
 
     private func filterMicros(category: String) -> [(NutrientData.NutrientMapping, Double)] {
@@ -264,6 +241,74 @@ struct MealDetailView: View {
         }
     }
 
+}
+
+// MARK: - Micronutrient expandable group
+
+private struct MicronutrientGroup: View {
+    let title: String
+    let icon: String
+    let tint: Color
+    let items: [(NutrientData.NutrientMapping, Double)]
+
+    @State private var isExpanded = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header button
+            Button {
+                withAnimation(.snappy(duration: 0.3)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: icon)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(tint)
+                        .frame(width: 28, height: 28)
+                        .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
+
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    Text("\(items.count)")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(tint)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(tint.opacity(0.12), in: Capsule())
+
+                    Spacer()
+
+                    Image(systemName: "chevron.forward")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(.plain)
+
+            // Expandable content
+            if isExpanded {
+                Divider()
+                    .padding(.leading, 54)
+
+                VStack(spacing: 0) {
+                    ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                        MacroRow(label: item.0.displayName, value: item.1, unit: item.0.displayUnit)
+                        if index < items.count - 1 {
+                            Divider().padding(.leading, 54)
+                        }
+                    }
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .cardSurface(cornerRadius: 14, background: Color(.secondarySystemGroupedBackground), strokeOpacity: 0.06, shadowOpacity: 0.02)
+    }
 }
 
 // MARK: - Macro stat (big 4)

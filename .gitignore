@@ -5,4 +5,4 @@ branded_food/
 *.xlsx
 .DS_Store
 *.xcuserstate
-FoodLog/Resources/branded.sqlite
+FoodLog/Resources/branded.sqlite.gz

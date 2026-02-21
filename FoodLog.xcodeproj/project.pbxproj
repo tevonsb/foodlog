@@ -239,7 +239,6 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 82A031E631AD1AD10E0A3523 /* Build configuration list for PBXNativeTarget "FoodLog" */;
 			buildPhases = (
-				E1F2A3B4C5D6E7F809A1B2C3 /* Decompress branded.sqlite */,
 				6E21F996E89D1920E143B428 /* Sources */,
 				C6EA286D1C2CCF6BE130395B /* Resources */,
 				3D168AC31D16389F5FDC8721 /* Frameworks */,
@@ -307,22 +306,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		E1F2A3B4C5D6E7F809A1B2C3 /* Decompress branded.sqlite */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/FoodLog/Resources/branded.sqlite.gz",
-			);
-			name = "Decompress branded.sqlite";
-			outputPaths = (
-				"$(SRCROOT)/FoodLog/Resources/branded.sqlite",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "if [ \"$SRCROOT/FoodLog/Resources/branded.sqlite.gz\" -nt \"$SRCROOT/FoodLog/Resources/branded.sqlite\" ] || [ ! -f \"$SRCROOT/FoodLog/Resources/branded.sqlite\" ]; then\n    echo \"Decompressing branded.sqlite.gz...\"\n    gunzip -k -f \"$SRCROOT/FoodLog/Resources/branded.sqlite.gz\"\nelse\n    echo \"branded.sqlite is up to date\"\nfi\n";
-		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */

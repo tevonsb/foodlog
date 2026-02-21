@@ -49,25 +49,27 @@ struct WidgetEntryView: View {
 // MARK: - Small Widget
 
 struct SmallWidgetView: View {
+    @Environment(\.widgetRenderingMode) private var renderingMode
     let entry: NutrientsEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 10) {
             // Calories (hero stat)
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text("\(Int(entry.nutrients.calories))")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundStyle(.orange)
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .foregroundStyle(renderingMode == .fullColor ? .orange : .primary)
+                    .widgetAccentable()
                 Text("calories")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
             }
-            .padding(.bottom, 8)
+            .padding(.bottom, 4)
 
             Spacer(minLength: 0)
 
             // Secondary stats
-            HStack(spacing: 0) {
+            HStack(spacing: 10) {
                 SmallStat(value: "\(Int(entry.nutrients.protein))g", label: "Protein", color: .blue)
                 Spacer(minLength: 0)
                 SmallStat(value: "\(Int(entry.nutrients.fiber))g", label: "Fiber", color: .green)
@@ -76,22 +78,24 @@ struct SmallWidgetView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(16)
+        .padding(14)
         .containerBackground(.fill.tertiary, for: .widget)
         .widgetURL(URL(string: "nutritiousai://add-food"))
     }
 }
 
 private struct SmallStat: View {
+    @Environment(\.widgetRenderingMode) private var renderingMode
     let value: String
     let label: String
     let color: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 1) {
+        VStack(alignment: .leading, spacing: 2) {
             Text(value)
                 .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundStyle(color)
+                .foregroundStyle(renderingMode == .fullColor ? color : .primary)
+                .widgetAccentable()
             Text(label)
                 .font(.system(size: 9, weight: .medium))
                 .foregroundStyle(.tertiary)
@@ -105,9 +109,9 @@ struct MediumWidgetView: View {
     let entry: NutrientsEntry
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 16) {
             // Left side: stats
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 12) {
                 // Row 1: Cal, Protein, Fiber
                 HStack(spacing: 14) {
                     InlineStat(icon: "flame.fill", value: "\(Int(entry.nutrients.calories))", label: "Cal", color: .orange)
@@ -132,7 +136,7 @@ struct MediumWidgetView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             // Right side: round action buttons
-            VStack(spacing: 8) {
+            VStack(spacing: 10) {
                 Button(intent: LogWaterIntent()) {
                     RoundBtn(icon: "drop.fill", color: .cyan)
                 }
@@ -156,18 +160,21 @@ struct MediumWidgetView: View {
 }
 
 private struct InlineStat: View {
+    @Environment(\.widgetRenderingMode) private var renderingMode
     let icon: String
     let value: String
     let label: String
     let color: Color
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 6) {
             Image(systemName: icon)
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(color)
+                .foregroundStyle(renderingMode == .fullColor ? color : .primary)
+                .widgetAccentable()
             Text(value)
                 .font(.system(size: 15, weight: .bold, design: .rounded))
+                .widgetAccentable()
             Text(label)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
@@ -186,6 +193,7 @@ private struct RoundBtn: View {
                 .foregroundStyle(.white)
                 .frame(width: 36, height: 36)
                 .glassEffect(.regular.tint(color), in: .circle)
+                .widgetAccentable()
         } else {
             Image(systemName: icon)
                 .font(.system(size: 13, weight: .bold))

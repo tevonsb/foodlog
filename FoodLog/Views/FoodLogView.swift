@@ -246,7 +246,7 @@ struct FoodLogView: View {
 
     private var fabButtons: some View {
         VStack(spacing: 12) {
-            GlassCircleButton(icon: "cup.and.saucer.fill", iconColor: .brown, size: 44, showShadow: true) {
+            GlassCircleButton(icon: "cup.and.saucer.fill", iconColor: .primary, size: 48, tint: .brown.opacity(0.35), showShadow: true) {
                 impactLight.impactOccurred()
                 Task { await logCoffee() }
             }
@@ -263,14 +263,14 @@ struct FoodLogView: View {
             .opacity(fabsVisible ? 1 : 0)
             .offset(y: fabsVisible ? 0 : 20)
 
-            GlassCircleButton(icon: "drop.fill", iconColor: .cyan, size: 44, showShadow: true) {
+            GlassCircleButton(icon: "drop.fill", iconColor: .primary, size: 48, tint: .cyan.opacity(0.35), showShadow: true) {
                 impactLight.impactOccurred()
                 Task { await logWater() }
             }
             .opacity(fabsVisible ? 1 : 0)
             .offset(y: fabsVisible ? 0 : 20)
 
-            GlassCircleButton(icon: "plus", iconColor: .primary, size: 60, showShadow: true) {
+            GlassCircleButton(icon: "plus", iconColor: .white, size: 58, tint: .accentColor, prominent: true, showShadow: true) {
                 impactLight.impactOccurred()
                 showAddFood = true
             }
