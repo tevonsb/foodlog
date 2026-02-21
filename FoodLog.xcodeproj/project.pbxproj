@@ -33,6 +33,8 @@
 		FCC338EE77EF52A9BA356807 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90325F2D5E6AE6F27877B050 /* SettingsView.swift */; };
 		FD205A2F7FCE7635B1FCC43F /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 546057AAB58C8476D2470618 /* KeychainService.swift */; };
 		D3FB5E0881A4A13774C1529E /* MealProcessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = E59F533F3674500FFC205376 /* MealProcessing.swift */; };
+		A7B3C1D2E4F5068798A1B2C3 /* BarcodeDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8C4D2E3F5A6179809B2C3D4 /* BarcodeDatabase.swift */; };
+		C9D5E3F4A6B7280910C3D4E5 /* branded.sqlite in Resources */ = {isa = PBXBuildFile; fileRef = D0E6F4A5B7C8391021D4E5F6 /* branded.sqlite */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -87,6 +89,8 @@
 		EABD568EEBF11F173DDE2099 /* ClaudeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeService.swift; sourceTree = "<group>"; };
 		FB443A8CAB3DD8EA56767CD6 /* NutrientData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutrientData.swift; sourceTree = "<group>"; };
 		E59F533F3674500FFC205376 /* MealProcessing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealProcessing.swift; sourceTree = "<group>"; };
+		B8C4D2E3F5A6179809B2C3D4 /* BarcodeDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodeDatabase.swift; sourceTree = "<group>"; };
+		D0E6F4A5B7C8391021D4E5F6 /* branded.sqlite */ = {isa = PBXFileReference; lastKnownFileType = file; path = branded.sqlite; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -138,6 +142,7 @@
 		6E99DC96135233FED52447C8 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				D0E6F4A5B7C8391021D4E5F6 /* branded.sqlite */,
 				DE3859C09443F406E8F83C15 /* fndds.sqlite */,
 			);
 			path = Resources;
@@ -168,6 +173,7 @@
 		C1C0D4CDCB6CD8B582CE1DD2 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				B8C4D2E3F5A6179809B2C3D4 /* BarcodeDatabase.swift */,
 				EABD568EEBF11F173DDE2099 /* ClaudeService.swift */,
 				27EBB0FC405DE30940B0CCC6 /* FNDDSDatabase.swift */,
 				BFDA4F623D7B73A83EF4E492 /* HealthKitService.swift */,
@@ -230,6 +236,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 82A031E631AD1AD10E0A3523 /* Build configuration list for PBXNativeTarget "FoodLog" */;
 			buildPhases = (
+				E1F2A3B4C5D6E7F809A1B2C3 /* Decompress branded.sqlite */,
 				6E21F996E89D1920E143B428 /* Sources */,
 				C6EA286D1C2CCF6BE130395B /* Resources */,
 				3D168AC31D16389F5FDC8721 /* Frameworks */,
@@ -289,11 +296,31 @@
 			buildActionMask = 2147483647;
 			files = (
 				1E134C1FAD00EA4633F31754 /* Assets.xcassets in Resources */,
+				C9D5E3F4A6B7280910C3D4E5 /* branded.sqlite in Resources */,
 				ECE1C9926469988A4681947A /* fndds.sqlite in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		E1F2A3B4C5D6E7F809A1B2C3 /* Decompress branded.sqlite */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/FoodLog/Resources/branded.sqlite.gz",
+			);
+			name = "Decompress branded.sqlite";
+			outputPaths = (
+				"$(SRCROOT)/FoodLog/Resources/branded.sqlite",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ \"$SRCROOT/FoodLog/Resources/branded.sqlite.gz\" -nt \"$SRCROOT/FoodLog/Resources/branded.sqlite\" ] || [ ! -f \"$SRCROOT/FoodLog/Resources/branded.sqlite\" ]; then\n    echo \"Decompressing branded.sqlite.gz...\"\n    gunzip -k -f \"$SRCROOT/FoodLog/Resources/branded.sqlite.gz\"\nelse\n    echo \"branded.sqlite is up to date\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		6E21F996E89D1920E143B428 /* Sources */ = {
@@ -301,6 +328,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				7EE48E5078DC0C66D5293CF2 /* AddFoodView.swift in Sources */,
+				A7B3C1D2E4F5068798A1B2C3 /* BarcodeDatabase.swift in Sources */,
 				B2C3D4E5F607B8C9D0E1F2A1 /* BeverageEntry.swift in Sources */,
 				E5F6A7B809D0E1F2A1B2C3D4 /* BeverageIntents.swift in Sources */,
 				952A9123778113E6F5E41666 /* CameraView.swift in Sources */,

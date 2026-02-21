@@ -10,6 +10,7 @@ struct AddFoodView: View {
     @State private var mealText = ""
     @State private var showCamera = false
     @State private var capturedImageData: Data?
+    @State private var scannedBarcode: String?
 
     // Processing state
     @State private var isLogging = false
@@ -38,10 +39,21 @@ struct AddFoodView: View {
         .navigationTitle("Log Meal")
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(isPresented: $showCamera) {
-            CameraView { imageData in
-                capturedImageData = imageData
-                // Auto-submit photo immediately
-                Task { await sendMessage() }
+            CameraView(
+                onImageCaptured: { imageData in
+                    capturedImageData = imageData
+                    // Auto-submit photo immediately
+                    Task { await sendMessage() }
+                },
+                onBarcodeScanned: { barcode in
+                    scannedBarcode = barcode
+                }
+            )
+        }
+        .onChange(of: scannedBarcode) {
+            if let barcode = scannedBarcode {
+                scannedBarcode = nil
+                Task { await processBarcode(barcode) }
             }
         }
     }
@@ -321,6 +333,45 @@ struct AddFoodView: View {
             await adjustExistingEntry(entry: activeEntry, text: currentText)
         } else {
             await createNewEntries(text: currentText, imageData: currentImageData)
+        }
+
+        isLogging = false
+    }
+
+    // MARK: - Barcode processing
+
+    private func processBarcode(_ barcode: String) async {
+        submittedMessages.append(ChatBubble(text: "Scanned barcode: \(barcode)", imageData: nil))
+        progressEvents = []
+        isLogging = true
+        errorMessage = nil
+        agentMessage = nil
+
+        guard let product = BarcodeDatabase.shared.lookup(barcode: barcode) else {
+            errorMessage = "Product not found in database. Try taking a photo instead."
+            isLogging = false
+            return
+        }
+
+        progressEvents.append(ProgressItem(
+            icon: "barcode",
+            text: "Found: \(product.brand ?? "") \(product.description)",
+            color: .green
+        ))
+
+        do {
+            let analysis = try await ClaudeService.analyzeBarcodeProduct(product)
+            let meals = analysis.resolvedMeals
+
+            let description = product.brand != nil
+                ? "\(product.brand!) \(product.description)"
+                : product.description
+
+            await processCompletedMeals(meals, text: description, imageData: nil)
+            notify.notificationOccurred(.success)
+        } catch {
+            errorMessage = error.localizedDescription
+            notify.notificationOccurred(.error)
         }
 
         isLogging = false

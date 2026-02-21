@@ -208,6 +208,51 @@ struct ClaudeService {
         """
     }
 
+    // MARK: - Barcode system prompt
+
+    private static var barcodeSystemPrompt: String {
+        """
+        You are a food nutrition assistant. A user scanned a barcode on a packaged food product. \
+        Your job is to determine the appropriate portion to log.
+
+        ## Portion rules
+        - **Single-serve products** (individual bar, single can/bottle, small bag, single packet, \
+        cup of yogurt, individual frozen meal): log the ENTIRE package as one serving.
+        - **Multi-serve products** (large bag, family-size box, 2-liter bottle, multi-pack, \
+        large container): log ONE standard serving as listed on the label.
+        - Use the household_serving, product name, and serving size to make this determination.
+        - If the household_serving says something like "1 bar", "1 packet", "1 can", "1 bottle", \
+        "1 container" — it's single-serve, log the whole thing.
+        - If the household_serving says "about 15 chips", "1/2 cup", "2 tbsp", "1 cup" — it's \
+        multi-serve, log one serving.
+
+        ## Response format
+        Return ONLY a JSON object (no markdown, no explanation):
+        {
+          "foods": [
+            {
+              "food_name": "<brand> <product name>",
+              "grams": <serving grams>,
+              "calories": <number>,
+              "protein": <number>,
+              "fat": <number>,
+              "carbs": <number>,
+              "fiber": <number>,
+              "sugar": <number>,
+              "source": "barcode",
+              "food_code": null,
+              "matched_description": "<brand> <product name>"
+            }
+          ]
+        }
+
+        Rules:
+        - Round nutrient values to 1 decimal place
+        - Use the nutrition values provided (they are per serving from the label)
+        - For grams: use the serving_size if available, otherwise estimate from household_serving
+        """
+    }
+
     // MARK: - Model selection
 
     private static let haikuModel = "claude-haiku-4-5-20251001"
@@ -234,6 +279,24 @@ struct ClaudeService {
             ]
         ]
         return makeStream(messages: messages, system: agenticSystemPrompt, model: sonnetModel)
+    }
+
+    static func analyzeBarcodeProduct(_ product: BarcodeSearchResult) async throws -> AgenticMealAnalysis {
+        let servingSizeStr = product.servingSize.map { "\($0)" } ?? "unknown"
+        let messages: [[String: Any]] = [
+            ["role": "user", "content": """
+            Product: \(product.description)
+            Brand: \(product.brand ?? "Unknown")
+            Barcode: \(product.barcode)
+            Label serving size: \(servingSizeStr) \(product.servingUnit ?? "g")
+            Household serving: \(product.householdServing ?? "not specified")
+            Nutrition per serving: \(product.calories) kcal, \(product.protein)g protein, \(product.fat)g fat, \(product.carbs)g carbs, \(product.fiber)g fiber, \(product.sugar)g sugar
+
+            Determine the appropriate portion and return the nutrition data.
+            """]
+        ]
+        // No tools needed — single call, no agentic loop
+        return try await runSingleCall(messages: messages, system: barcodeSystemPrompt, model: haikuModel)
     }
 
     static func adjustMeal(currentFoods: [LoggedFood], adjustment: String) -> AsyncStream<AgentEvent> {
@@ -264,6 +327,27 @@ struct ClaudeService {
                 task.cancel()
             }
         }
+    }
+
+    // MARK: - Single call (no tool use)
+
+    private static func runSingleCall(messages: [[String: Any]], system: String, model: String) async throws -> AgenticMealAnalysis {
+        let (contentBlocks, _) = try await callClaudeAPIWithRetry(
+            messages: messages,
+            system: system,
+            tools: [],
+            model: model
+        )
+
+        let textContent = contentBlocks
+            .compactMap { $0["text"] as? String }
+            .joined()
+
+        guard !textContent.isEmpty else {
+            throw ClaudeError.apiError("Claude returned an empty response. Please try again.")
+        }
+
+        return try parseAgenticResponse(text: textContent)
     }
 
     // MARK: - Agentic loop
