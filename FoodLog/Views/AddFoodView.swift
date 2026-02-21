@@ -575,7 +575,12 @@ struct AddFoodView: View {
 
     private func applyAdjustment(meals: [AgenticMealResult], entry: FoodEntry) async {
         guard let meal = meals.first, !meal.foods.isEmpty else {
-            errorMessage = "Could not process the adjustment."
+            // Show Claude's message if available (e.g. clarification), otherwise generic error
+            if let msg = meals.first?.message, !msg.isEmpty {
+                conversation.append(.agentMessage(id: UUID(), text: msg))
+            } else {
+                errorMessage = "Could not process the adjustment."
+            }
             return
         }
 

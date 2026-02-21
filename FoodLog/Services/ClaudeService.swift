@@ -228,29 +228,44 @@ struct ClaudeService {
         return """
         You are a food nutrition assistant. The current date/time is \(now).
 
-        The user has already logged a meal and is providing follow-up information. This could be:
-        - A correction ("actually it was brown rice, not white")
-        - An addition ("I also had a glass of orange juice")
-        - A removal ("remove the bread")
-        - A portion adjustment ("the chicken was more like 200g")
-        - General feedback ("that looks about right" — return the meal unchanged)
+        The user has already logged a meal and is providing a follow-up adjustment.
 
-        You will receive the current foods and the user's message. Apply their changes and return the \
-        COMPLETE updated meal.
+        ## CRITICAL: ALWAYS respond with ONLY a JSON object
+        Every response MUST be a valid JSON object. NEVER respond with plain text, questions, or \
+        conversation. If the user's intent is unclear, return ALL current foods UNCHANGED and include \
+        a "message" field asking for clarification.
 
+        ## Types of adjustments
+        - Correction: "actually it was brown rice, not white" → swap the food
+        - Addition: "I also had orange juice" → add a new food
+        - Removal: "remove the bread" → remove that food
+        - Portion change: "less muesli", "the chicken was more like 200g" → adjust grams and scale macros
+        - Confirmation: "that looks right", "perfect" → return all foods unchanged
+
+        ## Interpreting vague portion changes
+        When the user says a food was "less" or "more" WITHOUT specifying exact grams, interpret as:
+        - "a bit less" / "less" / "smaller portion" → reduce that food's grams by ~30%
+        - "much less" / "way less" / "barely any" → reduce by ~50-60%
+        - "a bit more" / "more" / "bigger portion" → increase by ~30%
+        - "much more" / "a lot more" → increase by ~50-60%
+        - "double" → multiply by 2x
+        - "half" → multiply by 0.5x
+        Scale ALL macro values proportionally when changing grams.
+
+        ## Database usage
         You have access to a USDA FNDDS food database via the search_food_database tool.
-
-        For any NEW foods added, search the database to get accurate nutrition data. For existing foods \
-        where only the portion changes, scale the existing values. If you can't find a new food in the \
-        database after trying, estimate it.
+        - For NEW foods being added, search the database for accurate nutrition data
+        - For existing foods where only the portion changes, scale the existing values (no search needed)
+        - For food SWAPS (e.g. "brown rice not white"), search for the replacement
+        - If you can't find a new food after trying, estimate it with source: "estimate"
 
         ## Evaluating matches
         - CHECK that the matched food makes sense
         - CHECK that macros are plausible (meat ~20-30g protein/100g, grains ~3-5g/100g, etc.)
         - If a match looks wrong, try different search terms or use your own estimate
 
-        ## Final response format
-        Return ONLY a JSON object (no markdown, no explanation):
+        ## Response format
+        Return ONLY a JSON object (no markdown, no explanation, no conversation):
         {
           "foods": [
             {
@@ -276,7 +291,7 @@ struct ClaudeService {
         - Scale values to actual portion grams
         - Round nutrient values to 1 decimal place
         - If the adjustment implies a time change, include meal_time. Otherwise omit it.
-        - If you want to communicate something to the user, include a "message" field.
+        - Include a "message" field to communicate anything to the user.
         """
     }
 
@@ -793,8 +808,10 @@ struct ClaudeService {
             }
         }
 
-        print("ClaudeService: Could not parse response text (\(text.count) chars): \(text.prefix(800))")
-        throw ClaudeError.apiError("Could not parse the nutrition response. Please try again.")
+        // Graceful fallback: if response is conversational text (not JSON), treat it as a message-only
+        // result so the UI can display Claude's text instead of a hard error
+        print("ClaudeService: Could not parse JSON, treating as message-only response (\(text.count) chars): \(text.prefix(200))")
+        return AgenticMealAnalysis(meals: [], foods: nil, mealTime: nil, message: cleaned)
     }
 
     /// Attempt to repair truncated JSON by finding the last complete food object

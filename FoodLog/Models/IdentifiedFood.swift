@@ -107,6 +107,13 @@ struct AgenticMealAnalysis: Codable, Sendable {
         case mealTime = "meal_time"
     }
 
+    init(meals: [AgenticMealResult] = [], foods: [AgenticFoodResult]? = nil, mealTime: String? = nil, message: String? = nil) {
+        self.meals = meals
+        self.foods = foods
+        self.mealTime = mealTime
+        self.message = message
+    }
+
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         meals = (try? c.decodeIfPresent([AgenticMealResult].self, forKey: .meals)) ?? []
