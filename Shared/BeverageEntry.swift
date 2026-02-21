@@ -11,16 +11,35 @@ struct BeverageEntry: Codable, Identifiable {
     let timestamp: Date
     let amount: Double // oz for water, count (1) for coffee
     var healthKitSampleUUID: String?
+    let label: String?
+    let caffeineMg: Double?
+    let trackedViaMeal: Bool
 
-    init(type: BeverageType, amount: Double, healthKitSampleUUID: String? = nil) {
+    init(type: BeverageType, amount: Double, healthKitSampleUUID: String? = nil, label: String? = nil, caffeineMg: Double? = nil, trackedViaMeal: Bool = false) {
         self.id = UUID()
         self.type = type
         self.timestamp = Date()
         self.amount = amount
         self.healthKitSampleUUID = healthKitSampleUUID
+        self.label = label
+        self.caffeineMg = caffeineMg
+        self.trackedViaMeal = trackedViaMeal
     }
 
-    var needsHealthKitSync: Bool { healthKitSampleUUID == nil }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        type = try c.decode(BeverageType.self, forKey: .type)
+        timestamp = try c.decode(Date.self, forKey: .timestamp)
+        amount = try c.decode(Double.self, forKey: .amount)
+        healthKitSampleUUID = try c.decodeIfPresent(String.self, forKey: .healthKitSampleUUID)
+        label = try c.decodeIfPresent(String.self, forKey: .label)
+        caffeineMg = try c.decodeIfPresent(Double.self, forKey: .caffeineMg)
+        trackedViaMeal = (try c.decodeIfPresent(Bool.self, forKey: .trackedViaMeal)) ?? false
+    }
+
+    /// Needs HealthKit sync only if it doesn't already have a sample AND isn't tracked via a FoodEntry meal.
+    var needsHealthKitSync: Bool { healthKitSampleUUID == nil && !trackedViaMeal }
 }
 
 struct BeverageStore {

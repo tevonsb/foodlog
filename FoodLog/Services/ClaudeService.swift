@@ -133,14 +133,21 @@ struct ClaudeService {
         - "Bread, white" / "Bread, whole wheat"
         - "Egg, fried" / "Egg, scrambled"
 
+        **How the search works:**
+        The database uses full-text search with prefix matching and stemming. Your search terms \
+        are matched as prefixes, so "oat" finds "oats" AND "oatmeal". Plurals are handled \
+        automatically ("berry" = "berries"). Multi-word queries require ALL words to match. \
+        If no results, the search automatically broadens to match ANY word.
+
         **Search tips:**
-        - Keep queries short and simple: "chicken breast" not "grilled free-range organic chicken"
-        - Use common terms: "oats" not "rolled oats steel cut organic"
-        - If no results, try broader terms: "beef" instead of "beef chuck roast"
-        - Try synonyms: "prawns" → "shrimp", "aubergine" → "eggplant", "courgette" → "zucchini"
-        - Try singular/plural variations: "strawberry" vs "strawberries"
-        - The DB is US-focused: "muesli" won't be found, but "oats" and "almonds" will
-        - If a search returns bad results, try rephrasing — don't just accept a wrong match
+        - Use 1-2 word queries: "chicken breast", "oats", "black beans", "cheddar"
+        - Shorter is better: "rice" not "rice white long grain cooked"
+        - The fewer words, the broader the results — start simple, narrow if needed
+        - If no results, try the core word only: "almond" instead of "almond butter raw"
+        - Use American English terms: "shrimp" not "prawns", "eggplant" not "aubergine"
+        - The DB is US-focused (~5,400 foods): international foods may not exist, but their \
+        ingredients almost certainly will — that's why decomposition matters
+        - If a search returns wrong/irrelevant results, try a different word entirely
 
         ## Step 4: Evaluate Results and Assign Portions
 

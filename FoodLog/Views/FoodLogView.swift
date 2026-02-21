@@ -243,6 +243,16 @@ struct FoodLogView: View {
                 .frame(width: 48, height: 48)
             }
             .buttonStyle(BounceButtonStyle())
+            .contextMenu {
+                ForEach(CoffeeVariant.allCases, id: \.displayName) { variant in
+                    Button {
+                        impactLight.impactOccurred()
+                        Task { await logCoffeeVariant(variant) }
+                    } label: {
+                        Label(variant.displayName, systemImage: variant.icon)
+                    }
+                }
+            }
             .opacity(fabsVisible ? 1 : 0)
             .offset(y: fabsVisible ? 0 : 20)
 
@@ -366,6 +376,36 @@ struct FoodLogView: View {
         showToast("Coffee logged")
     }
 
+    private func logCoffeeVariant(_ variant: CoffeeVariant) async {
+        let nutrients = variant.nutrients
+        let food = variant.loggedFood
+        let foodEntry = FoodEntry(
+            mealDescription: variant.displayName,
+            nutrients: nutrients,
+            foods: [food]
+        )
+
+        let sampleUUIDs = (try? await HealthKitService.shared.saveMeal(
+            nutrients: nutrients, mealID: foodEntry.id, date: foodEntry.timestamp
+        )) ?? []
+        foodEntry.healthKitSampleUUIDs = sampleUUIDs
+
+        modelContext.insert(foodEntry)
+
+        let beverage = BeverageEntry(
+            type: .coffee, amount: 1,
+            label: variant.displayName,
+            caffeineMg: nutrients.caffeine,
+            trackedViaMeal: true
+        )
+        BeverageStore.append(beverage)
+
+        reloadBeverages()
+        syncWidgetData()
+        notify.notificationOccurred(.success)
+        showToast("\(variant.displayName) logged")
+    }
+
     private func syncWidgetData() {
         let n = todayNutrients
         TodayNutrients(
@@ -428,9 +468,9 @@ private struct BeverageRow: View {
                     .foregroundStyle(isWater ? .cyan : .brown)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(isWater ? "Water" : "Coffee")
+                Text(isWater ? "Water" : (entry.label ?? "Coffee"))
                     .font(.subheadline.weight(.medium))
-                Text(isWater ? "\(Int(entry.amount))oz" : "95mg caffeine")
+                Text(isWater ? "\(Int(entry.amount))oz" : "\(Int(entry.caffeineMg ?? 95))mg caffeine")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -504,6 +544,68 @@ private struct MacroPill: View {
         .padding(.horizontal, 7)
         .padding(.vertical, 3)
         .background(color.opacity(0.1), in: Capsule())
+    }
+}
+
+// MARK: - Coffee variant
+
+private enum CoffeeVariant: CaseIterable {
+    case black, withCream, latte
+
+    var displayName: String {
+        switch self {
+        case .black: "Coffee"
+        case .withCream: "Coffee with Cream"
+        case .latte: "Latte"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .black: "cup.and.saucer.fill"
+        case .withCream: "cup.and.saucer.fill"
+        case .latte: "mug.fill"
+        }
+    }
+
+    var nutrients: NutrientData {
+        var n = NutrientData()
+        switch self {
+        case .black:
+            n.calories = 2
+            n.protein = 0.3
+            n.caffeine = 95
+        case .withCream:
+            n.calories = 54
+            n.protein = 0.6
+            n.totalFat = 5.4
+            n.saturatedFat = 3.4
+            n.carbohydrates = 0.4
+            n.caffeine = 95
+        case .latte:
+            n.calories = 190
+            n.protein = 13
+            n.totalFat = 7
+            n.saturatedFat = 4.5
+            n.carbohydrates = 18
+            n.sugar = 17
+            n.caffeine = 150
+        }
+        return n
+    }
+
+    var loggedFood: LoggedFood {
+        let n = nutrients
+        return LoggedFood(
+            name: displayName,
+            matchedDescription: displayName,
+            grams: self == .latte ? 480 : 252,
+            calories: n.calories ?? 0,
+            protein: n.protein ?? 0,
+            carbs: n.carbohydrates ?? 0,
+            fat: n.totalFat ?? 0,
+            source: "estimate"
+        )
     }
 }
 

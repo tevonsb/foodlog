@@ -39,22 +39,44 @@ final class FNDDSDatabase: Sendable {
 
     // MARK: - Agentic search methods
 
-    private func sanitizeFTSQuery(_ query: String) -> String {
+    /// Tokenize and sanitize a query string into clean alphanumeric tokens
+    private func tokenize(_ query: String) -> [String] {
         query.unicodeScalars
             .filter { CharacterSet.alphanumerics.contains($0) || $0 == " " }
             .map { String($0) }
             .joined()
             .components(separatedBy: .whitespaces)
             .filter { !$0.isEmpty }
-            .map { "\"\($0)\"" }
-            .joined(separator: " ")
     }
 
     func searchTopN(query: String, limit: Int = 3) -> [FNDDSSearchResult] {
         guard let db else { return [] }
 
-        let ftsQuery = sanitizeFTSQuery(query)
-        guard !ftsQuery.isEmpty else { return [] }
+        let tokens = tokenize(query)
+        guard !tokens.isEmpty else { return [] }
+
+        // Strategy 1: prefix AND — all tokens must match as prefixes
+        // "oat" matches "oat", "oats", "oatmeal"; "chicken breast" requires both
+        let prefixAndQuery = tokens.map { $0 + "*" }.joined(separator: " ")
+        var results = executeFTSSearch(query: prefixAndQuery, limit: limit)
+        if !results.isEmpty { return results }
+
+        // Strategy 2: prefix OR — any token can match (broadens recall)
+        // Helps when AND is too strict, e.g. "greek yogurt vanilla"
+        if tokens.count > 1 {
+            let prefixOrQuery = tokens.map { $0 + "*" }.joined(separator: " OR ")
+            results = executeFTSSearch(query: prefixOrQuery, limit: limit)
+            if !results.isEmpty { return results }
+        }
+
+        // Strategy 3: LIKE fallback — substring match on the raw foods table
+        // Last resort for terms FTS can't stem or match
+        results = executeLikeSearch(tokens: tokens, limit: limit)
+        return results
+    }
+
+    private func executeFTSSearch(query: String, limit: Int) -> [FNDDSSearchResult] {
+        guard let db else { return [] }
 
         let sql = """
             SELECT f.food_code, f.description,
@@ -71,7 +93,7 @@ final class FNDDSDatabase: Sendable {
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
         defer { sqlite3_finalize(stmt) }
 
-        sqlite3_bind_text(stmt, 1, (ftsQuery as NSString).utf8String, -1, nil)
+        sqlite3_bind_text(stmt, 1, (query as NSString).utf8String, -1, nil)
         sqlite3_bind_int(stmt, 2, Int32(limit))
 
         var results: [FNDDSSearchResult] = []
@@ -95,6 +117,58 @@ final class FNDDSDatabase: Sendable {
             ))
         }
         return results
+    }
+
+    /// Fallback substring search when FTS returns nothing
+    private func executeLikeSearch(tokens: [String], limit: Int) -> [FNDDSSearchResult] {
+        guard let db else { return [] }
+
+        // Build WHERE clause: description LIKE '%token1%' AND/OR description LIKE '%token2%'
+        // Try AND first, fall back to OR
+        for useAnd in [true, false] {
+            let joiner = useAnd ? " AND " : " OR "
+            let conditions = tokens.map { _ in "f.description LIKE ?" }.joined(separator: joiner)
+            let sql = """
+                SELECT f.food_code, f.description,
+                    f.energy_kcal, f.protein_g, f.fat_g, f.carbohydrate_g,
+                    f.fiber_g, f.sugar_g
+                FROM foods f
+                WHERE \(conditions)
+                LIMIT ?
+                """
+
+            var stmt: OpaquePointer?
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { continue }
+            defer { sqlite3_finalize(stmt) }
+
+            for (i, token) in tokens.enumerated() {
+                let pattern = "%\(token)%" as NSString
+                sqlite3_bind_text(stmt, Int32(i + 1), pattern.utf8String, -1, nil)
+            }
+            sqlite3_bind_int(stmt, Int32(tokens.count + 1), Int32(limit))
+
+            var results: [FNDDSSearchResult] = []
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                let foodCode = Int(sqlite3_column_int(stmt, 0))
+                guard let textPtr = sqlite3_column_text(stmt, 1) else { continue }
+                let description = String(cString: textPtr)
+                let portions = fetchPortions(foodCode: foodCode)
+
+                results.append(FNDDSSearchResult(
+                    foodCode: foodCode,
+                    description: description,
+                    caloriesPer100g: sqlite3_column_double(stmt, 2),
+                    proteinPer100g: sqlite3_column_double(stmt, 3),
+                    fatPer100g: sqlite3_column_double(stmt, 4),
+                    carbsPer100g: sqlite3_column_double(stmt, 5),
+                    fiberPer100g: sqlite3_column_double(stmt, 6),
+                    sugarPer100g: sqlite3_column_double(stmt, 7),
+                    portions: portions
+                ))
+            }
+            if !results.isEmpty { return results }
+        }
+        return []
     }
 
     private func fetchPortions(foodCode: Int) -> [(description: String, grams: Double)] {
