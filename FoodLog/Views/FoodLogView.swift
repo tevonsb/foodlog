@@ -184,41 +184,39 @@ struct FoodLogView: View {
     // MARK: - Today summary cards
 
     private var todaySummaryCards: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                SummaryCard(
-                    icon: "flame.fill",
-                    iconColor: .orange,
-                    value: "\(Int(todayNutrients.calories ?? 0))",
-                    label: "kcal"
-                )
-                SummaryCard(
-                    icon: "p.circle.fill",
-                    iconColor: .blue,
-                    value: "\(Int(todayNutrients.protein ?? 0))g",
-                    label: "protein"
-                )
-                SummaryCard(
-                    icon: "leaf.fill",
-                    iconColor: .green,
-                    value: "\(Int(todayNutrients.fiber ?? 0))g",
-                    label: "fiber"
-                )
-                SummaryCard(
-                    icon: "drop.fill",
-                    iconColor: .cyan,
-                    value: "\(Int(todayWaterOz))",
-                    label: "oz water"
-                )
-                SummaryCard(
-                    icon: "cup.and.saucer.fill",
-                    iconColor: .brown,
-                    value: "\(todayCoffeeCount)",
-                    label: "coffees"
-                )
-            }
-            .padding(.horizontal, 16)
+        HStack(spacing: 10) {
+            SummaryCard(
+                icon: "flame.fill",
+                iconColor: .orange,
+                value: "\(Int(todayNutrients.calories ?? 0))",
+                label: "kcal"
+            )
+            SummaryCard(
+                icon: "p.circle.fill",
+                iconColor: .blue,
+                value: "\(Int(todayNutrients.protein ?? 0))g",
+                label: "protein"
+            )
+            SummaryCard(
+                icon: "leaf.fill",
+                iconColor: .green,
+                value: "\(Int(todayNutrients.fiber ?? 0))g",
+                label: "fiber"
+            )
+            SummaryCard(
+                icon: "drop.fill",
+                iconColor: .cyan,
+                value: "\(Int(todayWaterOz))",
+                label: "oz water"
+            )
+            SummaryCard(
+                icon: "cup.and.saucer.fill",
+                iconColor: .brown,
+                value: "\(todayCoffeeCount)",
+                label: "coffees"
+            )
         }
+        .padding(.horizontal, 16)
     }
 
     // MARK: - FABs
@@ -384,7 +382,13 @@ struct FoodLogView: View {
             fiber: n.fiber ?? 0,
             waterOz: todayWaterOz,
             coffees: todayCoffeeCount,
-            lastUpdated: .now
+            lastUpdated: .now,
+            carbs: n.carbohydrates ?? 0,
+            fat: n.totalFat ?? 0,
+            sugar: n.sugar ?? 0,
+            sodium: n.sodium ?? 0,
+            cholesterol: n.cholesterol ?? 0,
+            saturatedFat: n.saturatedFat ?? 0
         ).save()
         WidgetCenter.shared.reloadAllTimelines()
     }

@@ -105,95 +105,84 @@ struct MediumWidgetView: View {
     let entry: NutrientsEntry
 
     var body: some View {
-        HStack(spacing: 12) {
-            // Left: Nutrient stats
-            VStack(alignment: .leading, spacing: 8) {
-                // Stats grid
-                HStack(spacing: 10) {
-                    MediumStat(
-                        icon: "flame.fill",
-                        value: "\(Int(entry.nutrients.calories))",
-                        label: "Cal",
-                        color: .orange
-                    )
-                    MediumStat(
-                        icon: "p.circle.fill",
-                        value: "\(Int(entry.nutrients.protein))g",
-                        label: "Protein",
-                        color: .blue
-                    )
-                    MediumStat(
-                        icon: "leaf.fill",
-                        value: "\(Int(entry.nutrients.fiber))g",
-                        label: "Fiber",
-                        color: .green
-                    )
-                }
-
-                Spacer(minLength: 0)
-
-                // Beverages
-                HStack(spacing: 12) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "drop.fill")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.cyan)
-                        Text("\(Int(entry.nutrients.waterOz))oz")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    }
-                    HStack(spacing: 4) {
-                        Image(systemName: "cup.and.saucer.fill")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.brown)
-                        Text("\(entry.nutrients.coffees)")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    }
-                }
+        VStack(spacing: 6) {
+            // Row 1: Calories, Protein, Fiber
+            HStack(spacing: 8) {
+                MediumStat(
+                    icon: "flame.fill",
+                    value: "\(Int(entry.nutrients.calories))",
+                    label: "Cal",
+                    color: .orange
+                )
+                MediumStat(
+                    icon: "p.circle.fill",
+                    value: "\(Int(entry.nutrients.protein))g",
+                    label: "Protein",
+                    color: .blue
+                )
+                MediumStat(
+                    icon: "leaf.fill",
+                    value: "\(Int(entry.nutrients.fiber))g",
+                    label: "Fiber",
+                    color: .green
+                )
             }
 
-            Spacer(minLength: 0)
-
-            // Right: Action buttons
-            VStack(spacing: 6) {
+            // Row 2: Water, Coffee, Add
+            HStack(spacing: 8) {
                 Button(intent: LogWaterIntent()) {
-                    ZStack {
-                        Circle()
-                            .fill(.cyan.opacity(0.15))
-                        Image(systemName: "drop.fill")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.cyan)
-                    }
-                    .frame(width: 44, height: 44)
+                    MediumStat(
+                        icon: "drop.fill",
+                        value: "\(Int(entry.nutrients.waterOz))oz",
+                        label: "Water",
+                        color: .cyan
+                    )
                 }
                 .buttonStyle(.plain)
 
                 Button(intent: LogCoffeeIntent()) {
-                    ZStack {
-                        Circle()
-                            .fill(.brown.opacity(0.15))
-                        Image(systemName: "cup.and.saucer.fill")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.brown)
-                    }
-                    .frame(width: 44, height: 44)
+                    MediumStat(
+                        icon: "cup.and.saucer.fill",
+                        value: "\(entry.nutrients.coffees)",
+                        label: "Coffee",
+                        color: .brown
+                    )
                 }
                 .buttonStyle(.plain)
 
                 Link(destination: URL(string: "nutritiousai://add-food")!) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.accentColor.opacity(0.15))
+                    VStack(spacing: 3) {
                         Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .bold))
+                            .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(Color.accentColor)
+                        Text("Log")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.tertiary)
                     }
-                    .frame(width: 44, height: 44)
+                    .frame(maxWidth: .infinity)
+                    .frame(maxHeight: .infinity)
+                    .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
                 }
+            }
+
+            // Bottom bar: secondary macros
+            HStack(spacing: 0) {
+                BottomStat(value: "\(Int(entry.nutrients.carbs))g", label: "Carbs")
+                Spacer(minLength: 0)
+                BottomStat(value: "\(Int(entry.nutrients.fat))g", label: "Fat")
+                Spacer(minLength: 0)
+                BottomStat(value: "\(Int(entry.nutrients.sugar))g", label: "Sugar")
+                Spacer(minLength: 0)
+                BottomStat(value: "\(Int(entry.nutrients.sodium))mg", label: "Na")
+                Spacer(minLength: 0)
+                BottomStat(value: "\(Int(entry.nutrients.cholesterol))mg", label: "Chol")
+                Spacer(minLength: 0)
+                BottomStat(value: "\(Int(entry.nutrients.saturatedFat))g", label: "Sat Fat")
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .containerBackground(.fill.tertiary, for: .widget)
     }
 }
@@ -219,6 +208,22 @@ private struct MediumStat: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
         .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+private struct BottomStat: View {
+    let value: String
+    let label: String
+
+    var body: some View {
+        VStack(spacing: 1) {
+            Text(value)
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .minimumScaleFactor(0.6)
+            Text(label)
+                .font(.system(size: 8, weight: .medium))
+                .foregroundStyle(.tertiary)
+        }
     }
 }
 

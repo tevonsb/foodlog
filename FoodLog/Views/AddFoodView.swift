@@ -718,7 +718,13 @@ struct AddFoodView: View {
             fiber: n.fiber ?? 0,
             waterOz: BeverageStore.todayWaterOz(),
             coffees: BeverageStore.todayCoffeeCount(),
-            lastUpdated: .now
+            lastUpdated: .now,
+            carbs: n.carbohydrates ?? 0,
+            fat: n.totalFat ?? 0,
+            sugar: n.sugar ?? 0,
+            sodium: n.sodium ?? 0,
+            cholesterol: n.cholesterol ?? 0,
+            saturatedFat: n.saturatedFat ?? 0
         ).save()
         WidgetCenter.shared.reloadAllTimelines()
     }
