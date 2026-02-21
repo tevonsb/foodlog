@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 import WidgetKit
 
 struct FoodLogView: View {
@@ -11,6 +12,12 @@ struct FoodLogView: View {
     @State private var showSettings = false
     @State private var showAddFood = false
     @State private var todayBeverages: [BeverageEntry] = []
+    @State private var fabsVisible = false
+    @State private var toastMessage: String?
+
+    // Haptics
+    @State private var impactLight = UIImpactFeedbackGenerator(style: .light)
+    @State private var notify = UINotificationFeedbackGenerator()
 
     private var todayEntries: [FoodEntry] {
         entries.filter { Calendar.current.isDateInToday($0.timestamp) }
@@ -28,115 +35,44 @@ struct FoodLogView: View {
         todayBeverages.filter { $0.type == .coffee }.count
     }
 
+    /// Group entries by day for display
+    private var groupedEntries: [(key: String, entries: [FoodEntry])] {
+        let calendar = Calendar.current
+        let grouped = Dictionary(grouping: entries) { entry -> String in
+            if calendar.isDateInToday(entry.timestamp) {
+                return "Today"
+            } else if calendar.isDateInYesterday(entry.timestamp) {
+                return "Yesterday"
+            } else {
+                let formatter = DateFormatter()
+                formatter.dateFormat = "EEEE, MMM d"
+                return formatter.string(from: entry.timestamp)
+            }
+        }
+        // Sort groups: Today first, then by most recent entry
+        return grouped.sorted { a, b in
+            let aDate = a.value.first?.timestamp ?? .distantPast
+            let bDate = b.value.first?.timestamp ?? .distantPast
+            return aDate > bDate
+        }.map { (key: $0.key, entries: $0.value) }
+    }
+
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottomTrailing) {
-                Group {
-                    if entries.isEmpty && todayBeverages.isEmpty {
-                        ContentUnavailableView(
-                            "Nothing logged yet",
-                            systemImage: "fork.knife.circle",
-                            description: Text("Tap the + to add your first meal, or log water and coffee to get started.")
-                        )
-                    } else {
-                        List {
-                            Section("Today") {
-                                HStack {
-                                    SummaryItem(value: todayNutrients.calories, label: "kcal")
-                                    Spacer()
-                                    SummaryItem(value: todayNutrients.protein, label: "protein")
-                                    Spacer()
-                                    SummaryItem(value: todayNutrients.fiber, label: "fiber")
-                                    Spacer()
-                                    SummaryItem(value: todayWaterOz, label: "oz water")
-                                    Spacer()
-                                    SummaryItem(value: Double(todayCoffeeCount), label: "coffees")
-                                }
-                                .padding(.vertical, 4)
-                            }
-
-                            if !todayBeverages.isEmpty {
-                                Section("Beverages") {
-                                    ForEach(todayBeverages) { beverage in
-                                        BeverageRow(entry: beverage)
-                                    }
-                                    .onDelete { indexSet in
-                                        Task { await deleteBeverages(at: indexSet) }
-                                    }
-                                }
-                            }
-
-                            Section("Meals") {
-                                ForEach(entries) { entry in
-                                    NavigationLink(value: entry) {
-                                        MealRow(entry: entry)
-                                    }
-                                }
-                                .onDelete { indexSet in
-                                    Task {
-                                        await deleteEntries(at: indexSet)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                mainContent
 
                 // Floating action buttons
-                VStack(spacing: 12) {
-                    Button {
-                        Task { await logCoffee() }
-                    } label: {
-                        ZStack {
-                            Circle()
-                                .fill(.regularMaterial)
-                                .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 6)
-                            Image(systemName: "cup.and.saucer.fill")
-                                .font(.title3.weight(.semibold))
-                                .symbolRenderingMode(.hierarchical)
-                                .foregroundStyle(.brown)
-                        }
-                        .frame(width: 52, height: 52)
-                    }
-                    .buttonStyle(.plain)
+                fabStack
 
-                    Button {
-                        Task { await logWater() }
-                    } label: {
-                        ZStack {
-                            Circle()
-                                .fill(.regularMaterial)
-                                .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 6)
-                            Image(systemName: "drop.fill")
-                                .font(.title3.weight(.semibold))
-                                .symbolRenderingMode(.hierarchical)
-                                .foregroundStyle(.cyan)
-                        }
-                        .frame(width: 52, height: 52)
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        showAddFood = true
-                    } label: {
-                        ZStack {
-                            Circle()
-                                .fill(.regularMaterial)
-                                .shadow(color: .black.opacity(0.25), radius: 14, x: 0, y: 8)
-                            Image(systemName: "plus")
-                                .font(.title.weight(.bold))
-                                .symbolRenderingMode(.hierarchical)
-                                .foregroundStyle(Color.accentColor)
-                        }
-                        .frame(width: 64, height: 64)
-                    }
-                    .buttonStyle(.plain)
+                // Toast overlay
+                if let message = toastMessage {
+                    toastView(message)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                .padding(.trailing, 24)
-                .padding(.bottom, 24)
             }
-            .navigationTitle("Nutritious AI")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Nutritious")
+            .navigationBarTitleDisplayMode(.large)
             .navigationDestination(for: FoodEntry.self) { entry in
                 MealDetailView(entry: entry)
             }
@@ -148,7 +84,8 @@ struct FoodLogView: View {
                     Button {
                         showSettings = true
                     } label: {
-                        Image(systemName: "gear")
+                        Image(systemName: "gearshape.fill")
+                            .symbolRenderingMode(.hierarchical)
                     }
                 }
             }
@@ -166,6 +103,9 @@ struct FoodLogView: View {
         .onAppear {
             reloadBeverages()
             syncWidgetData()
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.2)) {
+                fabsVisible = true
+            }
         }
         .onChange(of: entries.count) {
             syncWidgetData()
@@ -183,6 +123,198 @@ struct FoodLogView: View {
         }
     }
 
+    // MARK: - Main content
+
+    @ViewBuilder
+    private var mainContent: some View {
+        if entries.isEmpty && todayBeverages.isEmpty {
+            ContentUnavailableView(
+                "Nothing logged yet",
+                systemImage: "fork.knife.circle",
+                description: Text("Tap + to add your first meal, or log water and coffee to get started.")
+            )
+        } else {
+            List {
+                // Today summary
+                Section {
+                    todaySummaryCards
+                        .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+                        .listRowBackground(Color.clear)
+                }
+
+                // Beverages
+                if !todayBeverages.isEmpty {
+                    Section {
+                        ForEach(todayBeverages) { beverage in
+                            BeverageRow(entry: beverage)
+                        }
+                        .onDelete { indexSet in
+                            Task { await deleteBeverages(at: indexSet) }
+                        }
+                    } header: {
+                        Text("Beverages")
+                    }
+                }
+
+                // Meals grouped by day
+                ForEach(groupedEntries, id: \.key) { group in
+                    Section {
+                        ForEach(group.entries) { entry in
+                            NavigationLink(value: entry) {
+                                MealRow(entry: entry)
+                            }
+                        }
+                        .onDelete { indexSet in
+                            Task {
+                                await deleteGroupedEntries(group: group.entries, at: indexSet)
+                            }
+                        }
+                    } header: {
+                        Text(group.key)
+                    }
+                }
+            }
+            .refreshable {
+                reloadBeverages()
+                syncWidgetData()
+            }
+        }
+    }
+
+    // MARK: - Today summary cards
+
+    private var todaySummaryCards: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                SummaryCard(
+                    icon: "flame.fill",
+                    iconColor: .orange,
+                    value: "\(Int(todayNutrients.calories ?? 0))",
+                    label: "kcal"
+                )
+                SummaryCard(
+                    icon: "p.circle.fill",
+                    iconColor: .blue,
+                    value: "\(Int(todayNutrients.protein ?? 0))g",
+                    label: "protein"
+                )
+                SummaryCard(
+                    icon: "leaf.fill",
+                    iconColor: .green,
+                    value: "\(Int(todayNutrients.fiber ?? 0))g",
+                    label: "fiber"
+                )
+                SummaryCard(
+                    icon: "drop.fill",
+                    iconColor: .cyan,
+                    value: "\(Int(todayWaterOz))",
+                    label: "oz water"
+                )
+                SummaryCard(
+                    icon: "cup.and.saucer.fill",
+                    iconColor: .brown,
+                    value: "\(todayCoffeeCount)",
+                    label: "coffees"
+                )
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    // MARK: - FABs
+
+    private var fabStack: some View {
+        VStack(spacing: 12) {
+            Button {
+                impactLight.impactOccurred()
+                Task { await logCoffee() }
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(.regularMaterial)
+                        .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 4)
+                    Image(systemName: "cup.and.saucer.fill")
+                        .font(.title3.weight(.semibold))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(.brown)
+                }
+                .frame(width: 48, height: 48)
+            }
+            .buttonStyle(BounceButtonStyle())
+            .opacity(fabsVisible ? 1 : 0)
+            .offset(y: fabsVisible ? 0 : 20)
+
+            Button {
+                impactLight.impactOccurred()
+                Task { await logWater() }
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(.regularMaterial)
+                        .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 4)
+                    Image(systemName: "drop.fill")
+                        .font(.title3.weight(.semibold))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(.cyan)
+                }
+                .frame(width: 48, height: 48)
+            }
+            .buttonStyle(BounceButtonStyle())
+            .opacity(fabsVisible ? 1 : 0)
+            .offset(y: fabsVisible ? 0 : 20)
+
+            Button {
+                impactLight.impactOccurred()
+                showAddFood = true
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(Color.accentColor.gradient)
+                        .shadow(color: Color.accentColor.opacity(0.35), radius: 12, x: 0, y: 6)
+                    Image(systemName: "plus")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(.white)
+                }
+                .frame(width: 60, height: 60)
+            }
+            .buttonStyle(BounceButtonStyle())
+            .opacity(fabsVisible ? 1 : 0)
+            .offset(y: fabsVisible ? 0 : 20)
+        }
+        .padding(.trailing, 20)
+        .padding(.bottom, 20)
+    }
+
+    // MARK: - Toast
+
+    private func toastView(_ message: String) -> some View {
+        VStack {
+            Spacer()
+            Text(message)
+                .font(.subheadline.weight(.medium))
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(.regularMaterial, in: Capsule())
+                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                .padding(.bottom, 100)
+        }
+        .frame(maxWidth: .infinity)
+        .allowsHitTesting(false)
+    }
+
+    private func showToast(_ message: String) {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+            toastMessage = message
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+            withAnimation(.easeOut(duration: 0.3)) {
+                toastMessage = nil
+            }
+        }
+    }
+
+    // MARK: - Actions
+
     private func reloadBeverages() {
         todayBeverages = BeverageStore.loadToday().sorted { $0.timestamp > $1.timestamp }
     }
@@ -190,6 +322,18 @@ struct FoodLogView: View {
     private func deleteEntries(at offsets: IndexSet) async {
         for index in offsets {
             let entry = entries[index]
+            if !entry.healthKitSampleUUIDs.isEmpty {
+                try? await HealthKitService.shared.deleteMeal(sampleUUIDs: entry.healthKitSampleUUIDs)
+            }
+            modelContext.delete(entry)
+        }
+        try? modelContext.save()
+        syncWidgetData()
+    }
+
+    private func deleteGroupedEntries(group: [FoodEntry], at offsets: IndexSet) async {
+        for index in offsets {
+            let entry = group[index]
             if !entry.healthKitSampleUUIDs.isEmpty {
                 try? await HealthKitService.shared.deleteMeal(sampleUUIDs: entry.healthKitSampleUUIDs)
             }
@@ -218,6 +362,8 @@ struct FoodLogView: View {
         BeverageStore.append(entry)
         reloadBeverages()
         syncWidgetData()
+        notify.notificationOccurred(.success)
+        showToast("8oz water logged")
     }
 
     private func logCoffee() async {
@@ -226,6 +372,8 @@ struct FoodLogView: View {
         BeverageStore.append(entry)
         reloadBeverages()
         syncWidgetData()
+        notify.notificationOccurred(.success)
+        showToast("Coffee logged")
     }
 
     private func syncWidgetData() {
@@ -242,55 +390,77 @@ struct FoodLogView: View {
     }
 }
 
-private struct SummaryItem: View {
-    let value: Double?
+// MARK: - Summary card
+
+private struct SummaryCard: View {
+    let icon: String
+    let iconColor: Color
+    let value: String
     let label: String
 
     var body: some View {
-        VStack(spacing: 2) {
-            Text("\(Int(value ?? 0))")
-                .font(.title2.bold())
+        VStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(iconColor)
+            Text(value)
+                .font(.title3.weight(.bold).monospacedDigit())
             Text(label)
-                .font(.caption)
+                .font(.caption2)
                 .foregroundStyle(.secondary)
         }
+        .frame(width: 68, height: 80)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
     }
 }
+
+// MARK: - Beverage row
 
 private struct BeverageRow: View {
     let entry: BeverageEntry
 
+    private var isWater: Bool { entry.type == .water }
+
     var body: some View {
-        HStack {
-            Image(systemName: entry.type == .water ? "drop.fill" : "cup.and.saucer.fill")
-                .foregroundStyle(entry.type == .water ? .cyan : .brown)
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(isWater ? Color.cyan.opacity(0.12) : Color.brown.opacity(0.12))
+                    .frame(width: 36, height: 36)
+                Image(systemName: isWater ? "drop.fill" : "cup.and.saucer.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(isWater ? .cyan : .brown)
+            }
             VStack(alignment: .leading, spacing: 2) {
-                Text(entry.type == .water ? "Water" : "Coffee")
-                    .font(.subheadline)
-                Text(entry.type == .water ? "\(Int(entry.amount))oz" : "95mg caffeine")
+                Text(isWater ? "Water" : "Coffee")
+                    .font(.subheadline.weight(.medium))
+                Text(isWater ? "\(Int(entry.amount))oz" : "95mg caffeine")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
             Text(entry.timestamp, format: .dateTime.hour().minute())
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.tertiary)
         }
     }
 }
+
+// MARK: - Meal row
 
 struct MealRow: View {
     let entry: FoodEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
                 Text(entry.mealDescription)
                     .font(.headline)
+                    .lineLimit(1)
                 Spacer()
                 Text(entry.timestamp, format: timestampFormat)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
             }
 
             if !entry.foods.isEmpty {
@@ -300,15 +470,13 @@ struct MealRow: View {
                     .lineLimit(1)
             }
 
-            HStack {
-                Text("\(Int(entry.nutrients.calories ?? 0)) kcal")
-                Text("\(Int(entry.nutrients.protein ?? 0))g P")
-                Text("\(Int(entry.nutrients.fiber ?? 0))g Fiber")
+            HStack(spacing: 8) {
+                MacroPill(icon: "flame.fill", value: "\(Int(entry.nutrients.calories ?? 0))", unit: "kcal", color: .orange)
+                MacroPill(icon: "p.circle.fill", value: "\(Int(entry.nutrients.protein ?? 0))g", unit: "P", color: .blue)
+                MacroPill(icon: "leaf.fill", value: "\(Int(entry.nutrients.fiber ?? 0))g", unit: "F", color: .green)
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 4)
     }
 
     private var timestampFormat: Date.FormatStyle {
@@ -320,3 +488,35 @@ struct MealRow: View {
     }
 }
 
+// MARK: - Macro pill
+
+private struct MacroPill: View {
+    let icon: String
+    let value: String
+    let unit: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(color)
+            Text(value)
+                .font(.caption2.weight(.semibold).monospacedDigit())
+                .foregroundStyle(.primary)
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(color.opacity(0.1), in: Capsule())
+    }
+}
+
+// MARK: - Bounce button style
+
+private struct BounceButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.88 : 1.0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
+    }
+}
