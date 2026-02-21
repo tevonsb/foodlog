@@ -36,12 +36,19 @@ struct MealDetailView: View {
             showEdit = true
         } label: {
             ZStack {
-                Circle()
-                    .fill(.regularMaterial)
-                    .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 4)
+                if #available(iOS 26.0, *) {
+                    Circle()
+                        .glassEffect(.regular.interactive(), in: .circle)
+                        .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 4)
+                } else {
+                    Circle()
+                        .background(.regularMaterial, in: Circle())
+                        .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 4)
+                }
                 Image(systemName: "pencil")
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.primary)
             }
             .frame(width: 48, height: 48)
         }
@@ -92,16 +99,15 @@ struct MealDetailView: View {
     private var macroSummaryBar: some View {
         HStack(spacing: 0) {
             MacroStat(label: "Calories", value: entry.nutrients.calories, unit: "kcal", color: .orange)
-            Spacer()
+            Spacer(minLength: 8)
             MacroStat(label: "Protein", value: entry.nutrients.protein, unit: "g", color: .blue)
-            Spacer()
+            Spacer(minLength: 8)
             MacroStat(label: "Carbs", value: entry.nutrients.carbohydrates, unit: "g", color: .purple)
-            Spacer()
+            Spacer(minLength: 8)
             MacroStat(label: "Fat", value: entry.nutrients.totalFat, unit: "g", color: .pink)
         }
-        .padding(16)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 8)
     }
 
     // MARK: - Food cards
@@ -111,7 +117,7 @@ struct MealDetailView: View {
         if !entry.foods.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Foods")
-                    .font(.headline)
+                    .sectionHeaderStyle()
                     .padding(.horizontal, 20)
 
                 VStack(spacing: 8) {
@@ -158,7 +164,7 @@ struct MealDetailView: View {
             }
         }
         .padding(14)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+        .cardSurface(cornerRadius: 14, background: Color(.secondarySystemGroupedBackground), strokeOpacity: 0.08, shadowOpacity: 0.02)
     }
 
     // MARK: - Totals section
@@ -166,7 +172,7 @@ struct MealDetailView: View {
     private var totalsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Totals")
-                .font(.headline)
+                .sectionHeaderStyle()
                 .padding(.horizontal, 20)
 
             // Big 4 macros
@@ -183,7 +189,7 @@ struct MealDetailView: View {
                 MacroRow(label: "Sodium", value: entry.nutrients.sodium, unit: "mg")
             }
             .padding(.vertical, 4)
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+            .cardSurface(cornerRadius: 14, background: Color(.secondarySystemGroupedBackground), strokeOpacity: 0.06, shadowOpacity: 0.02)
             .padding(.horizontal, 16)
         }
         .padding(.top, 20)
@@ -198,7 +204,7 @@ struct MealDetailView: View {
 
         return VStack(alignment: .leading, spacing: 10) {
             Text("Micronutrients")
-                .font(.headline)
+                .sectionHeaderStyle()
                 .padding(.horizontal, 20)
 
             if vitamins.isEmpty && minerals.isEmpty && other.isEmpty {
@@ -247,7 +253,7 @@ struct MealDetailView: View {
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 16)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+        .cardSurface(cornerRadius: 14, background: Color(.secondarySystemGroupedBackground), strokeOpacity: 0.06, shadowOpacity: 0.02)
         .padding(.horizontal, 16)
     }
 
@@ -334,3 +340,60 @@ private struct DetailBounceButtonStyle: ButtonStyle {
             .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
+
+#if DEBUG
+#Preview("Meal Detail") {
+    var nutrients = NutrientData()
+    nutrients.calories = 720
+    nutrients.protein = 42
+    nutrients.carbohydrates = 70
+    nutrients.totalFat = 24
+    nutrients.fiber = 9
+    nutrients.sugar = 12
+    nutrients.sodium = 820
+
+    let foods = [
+        LoggedFood(
+            name: "Salmon",
+            matchedDescription: "Pan-seared salmon",
+            grams: 180,
+            calories: 360,
+            protein: 34,
+            carbs: 0,
+            fat: 22,
+            source: "estimate"
+        ),
+        LoggedFood(
+            name: "Quinoa",
+            matchedDescription: "Cooked quinoa",
+            grams: 140,
+            calories: 220,
+            protein: 8,
+            carbs: 39,
+            fat: 4,
+            source: "estimate"
+        ),
+        LoggedFood(
+            name: "Roasted Vegetables",
+            matchedDescription: "Zucchini, peppers",
+            grams: 120,
+            calories: 140,
+            protein: 3,
+            carbs: 31,
+            fat: 2,
+            source: "estimate"
+        )
+    ]
+
+    let entry = FoodEntry(
+        timestamp: Date().addingTimeInterval(-7200),
+        mealDescription: "Dinner",
+        nutrients: nutrients,
+        foods: foods
+    )
+
+    return NavigationStack {
+        MealDetailView(entry: entry)
+    }
+}
+#endif

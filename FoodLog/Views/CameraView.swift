@@ -109,36 +109,84 @@ class BarcodeCameraViewController: UIViewController {
 
     private func setupUI() {
         // Shutter button
+        let shutterBackground = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterialDark))
+        shutterBackground.translatesAutoresizingMaskIntoConstraints = false
+        shutterBackground.layer.cornerRadius = 38
+        shutterBackground.clipsToBounds = true
+        view.addSubview(shutterBackground)
+
         let shutterButton = UIButton(type: .system)
         shutterButton.translatesAutoresizingMaskIntoConstraints = false
-        let config = UIImage.SymbolConfiguration(pointSize: 72, weight: .light)
-        shutterButton.setImage(UIImage(systemName: "circle.inset.filled", withConfiguration: config), for: .normal)
-        shutterButton.tintColor = .white
+        let symbolConfig = UIImage.SymbolConfiguration(pointSize: 72, weight: .light)
+        if #available(iOS 26.0, *) {
+            var buttonConfig = UIButton.Configuration.prominentGlass()
+            buttonConfig.image = UIImage(systemName: "circle.inset.filled", withConfiguration: symbolConfig)
+            buttonConfig.baseForegroundColor = .white
+            buttonConfig.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12)
+            shutterButton.configuration = buttonConfig
+            shutterBackground.isHidden = true
+        } else {
+            shutterButton.setImage(UIImage(systemName: "circle.inset.filled", withConfiguration: symbolConfig), for: .normal)
+            shutterButton.tintColor = .white
+        }
         shutterButton.addTarget(self, action: #selector(capturePhoto), for: .touchUpInside)
         view.addSubview(shutterButton)
 
         // Cancel button
         let cancelButton = UIButton(type: .system)
         cancelButton.translatesAutoresizingMaskIntoConstraints = false
-        cancelButton.setTitle("Cancel", for: .normal)
-        cancelButton.titleLabel?.font = .systemFont(ofSize: 18)
-        cancelButton.tintColor = .white
+        if #available(iOS 26.0, *) {
+            var cancelConfig = UIButton.Configuration.glass()
+            cancelConfig.title = "Cancel"
+            cancelConfig.baseForegroundColor = .white
+            cancelConfig.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
+                var outgoing = incoming
+                outgoing.font = .systemFont(ofSize: 18, weight: .semibold)
+                return outgoing
+            }
+            cancelConfig.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
+            cancelButton.configuration = cancelConfig
+        } else {
+            var cancelConfig = UIButton.Configuration.plain()
+            cancelConfig.title = "Cancel"
+            cancelConfig.baseForegroundColor = .white
+            cancelConfig.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
+                var outgoing = incoming
+                outgoing.font = .systemFont(ofSize: 18, weight: .semibold)
+                return outgoing
+            }
+            cancelConfig.background.backgroundColor = UIColor.black.withAlphaComponent(0.35)
+            cancelConfig.background.cornerRadius = 16
+            cancelConfig.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
+            cancelButton.configuration = cancelConfig
+        }
         cancelButton.addTarget(self, action: #selector(cancelTapped), for: .touchUpInside)
         view.addSubview(cancelButton)
 
         // Barcode indicator (top-right)
         if onBarcodeScanned != nil {
+            let iconBackground = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterialDark))
+            iconBackground.translatesAutoresizingMaskIntoConstraints = false
+            iconBackground.layer.cornerRadius = 16
+            iconBackground.clipsToBounds = true
+            view.addSubview(iconBackground)
+
             let iconView = UIImageView()
             iconView.translatesAutoresizingMaskIntoConstraints = false
             let iconConfig = UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
             iconView.image = UIImage(systemName: "barcode.viewfinder", withConfiguration: iconConfig)
-            iconView.tintColor = .white.withAlphaComponent(0.7)
+            iconView.tintColor = .white.withAlphaComponent(0.9)
             view.addSubview(iconView)
             barcodeIconView = iconView
 
             NSLayoutConstraint.activate([
-                iconView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
-                iconView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+                iconBackground.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
+                iconBackground.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+                iconBackground.widthAnchor.constraint(equalToConstant: 32),
+                iconBackground.heightAnchor.constraint(equalToConstant: 32),
+
+                iconView.centerXAnchor.constraint(equalTo: iconBackground.centerXAnchor),
+                iconView.centerYAnchor.constraint(equalTo: iconBackground.centerYAnchor)
             ])
         }
 
@@ -147,7 +195,7 @@ class BarcodeCameraViewController: UIViewController {
         overlay.translatesAutoresizingMaskIntoConstraints = false
         overlay.font = .systemFont(ofSize: 16, weight: .semibold)
         overlay.textColor = .white
-        overlay.backgroundColor = UIColor.black.withAlphaComponent(0.6)
+        overlay.backgroundColor = UIColor.black.withAlphaComponent(0.7)
         overlay.textAlignment = .center
         overlay.layer.cornerRadius = 12
         overlay.clipsToBounds = true
@@ -156,15 +204,20 @@ class BarcodeCameraViewController: UIViewController {
         barcodeOverlayLabel = overlay
 
         NSLayoutConstraint.activate([
+            shutterBackground.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            shutterBackground.centerYAnchor.constraint(equalTo: shutterButton.centerYAnchor),
+            shutterBackground.widthAnchor.constraint(equalToConstant: 76),
+            shutterBackground.heightAnchor.constraint(equalToConstant: 76),
+
             shutterButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             shutterButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -30),
 
-            cancelButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            cancelButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             cancelButton.centerYAnchor.constraint(equalTo: shutterButton.centerYAnchor),
 
             overlay.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             overlay.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 60),
-            overlay.heightAnchor.constraint(equalToConstant: 40),
+            overlay.heightAnchor.constraint(equalToConstant: 40)
         ])
     }
 
@@ -229,3 +282,52 @@ extension BarcodeCameraViewController: AVCaptureMetadataOutputObjectsDelegate {
         }
     }
 }
+
+#if DEBUG
+private struct CameraPreviewMock: View {
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color.black, Color.black.opacity(0.75), Color.black],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            VStack {
+                HStack {
+                    Text("Cancel")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .background(.black.opacity(0.35), in: Capsule())
+                    Spacer()
+                    Image(systemName: "barcode.viewfinder")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .padding(8)
+                        .background(.thinMaterial, in: Circle())
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+
+                Spacer()
+
+                ZStack {
+                    Circle()
+                        .fill(.thinMaterial)
+                        .frame(width: 76, height: 76)
+                    Image(systemName: "circle.inset.filled")
+                        .font(.system(size: 72, weight: .light))
+                        .foregroundStyle(.white)
+                }
+                .padding(.bottom, 30)
+            }
+        }
+    }
+}
+
+#Preview("Camera") {
+    CameraPreviewMock()
+}
+#endif

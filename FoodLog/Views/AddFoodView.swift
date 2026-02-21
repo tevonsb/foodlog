@@ -147,7 +147,7 @@ struct AddFoodView: View {
             Image(systemName: "fork.knife.circle.fill")
                 .font(.system(size: 60, weight: .regular))
                 .foregroundStyle(Color.accentColor.opacity(0.8))
-                .symbolEffect(.pulse.byLayer, options: .repeating.speed(0.5))
+                .symbolEffect(.pulse.byLayer)
             Text("Log your next meal")
                 .font(.title3.weight(.semibold))
             Text("Snap a photo or type a quick description.\nWe'll identify foods and track your nutrition.")
@@ -225,8 +225,13 @@ struct AddFoodView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.ultraThinMaterial)
         .clipShape(BubbleShape(isUser: false))
+        .cardSurface(
+            cornerRadius: 18,
+            background: Color(.secondarySystemBackground),
+            strokeOpacity: 0.08,
+            shadowOpacity: 0.0
+        )
         .padding(.horizontal)
         .transition(.asymmetric(
             insertion: .scale(scale: 0.9, anchor: .bottomLeading).combined(with: .opacity),
@@ -240,8 +245,12 @@ struct AddFoodView: View {
             .foregroundStyle(.secondary)
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.ultraThinMaterial)
+            .background(Color(.secondarySystemBackground))
             .clipShape(BubbleShape(isUser: false))
+            .overlay(
+                BubbleShape(isUser: false)
+                    .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+            )
             .padding(.horizontal)
             .transition(.asymmetric(
                 insertion: .scale(scale: 0.9, anchor: .bottomLeading).combined(with: .opacity),
@@ -280,27 +289,30 @@ struct AddFoodView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.ultraThinMaterial)
         .clipShape(BubbleShape(isUser: false))
+        .cardSurface(
+            cornerRadius: 18,
+            background: Color(.secondarySystemBackground),
+            strokeOpacity: 0.08,
+            shadowOpacity: 0.0
+        )
         .padding(.horizontal)
     }
 
     // MARK: - Floating meal cards
 
     private var floatingMealCards: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                ForEach(Array(sessionEntries.enumerated()), id: \.offset) { _, entry in
-                    floatingMealCard(for: entry)
-                        .transition(.asymmetric(
-                            insertion: .scale(scale: 0.8).combined(with: .opacity),
-                            removal: .scale(scale: 0.8).combined(with: .opacity)
-                        ))
-                }
+        VStack(spacing: 8) {
+            ForEach(Array(sessionEntries.enumerated()), id: \.offset) { _, entry in
+                floatingMealCard(for: entry)
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.98).combined(with: .opacity),
+                        removal: .scale(scale: 0.98).combined(with: .opacity)
+                    ))
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 
     @ViewBuilder
@@ -332,10 +344,10 @@ struct AddFoodView: View {
                     .foregroundStyle(.tertiary)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+        .cardSurface(cornerRadius: 14, background: Color(.tertiarySystemBackground), strokeOpacity: 0.08, shadowOpacity: 0.03)
 
         if editingEntry == nil {
             NavigationLink {
@@ -359,12 +371,25 @@ struct AddFoodView: View {
                     impactLight.impactOccurred()
                     showCamera = true
                 } label: {
-                    Image(systemName: "camera.fill")
-                        .font(.title3.weight(.semibold))
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(Color.accentColor)
-                        .frame(width: 40, height: 40)
-                        .contentShape(Rectangle())
+                    ZStack {
+                        if #available(iOS 26.0, *) {
+                            Circle()
+                                .glassEffect(.regular.interactive(), in: .circle)
+                        } else {
+                            Circle()
+                                .background(.thinMaterial, in: Circle())
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+                                )
+                        }
+                        Image(systemName: "camera.fill")
+                            .font(.title3.weight(.semibold))
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(.primary)
+                    }
+                    .frame(width: 40, height: 40)
+                    .contentShape(Circle())
                 }
 
                 TextField(activeEntry != nil ? "Edit this meal..." : "Describe your meal...", text: $mealText, axis: .vertical)
@@ -372,12 +397,8 @@ struct AddFoodView: View {
                     .focused($isInputFocused)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .background(Color(.systemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 20)
-                            .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-                    )
+                    .textFieldStyle(.plain)
+                    .liquidGlassInputStyle(cornerRadius: 20)
 
                 Button {
                     sendButtonPressed = true
@@ -387,12 +408,22 @@ struct AddFoodView: View {
                         sendButtonPressed = false
                     }
                 } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 32))
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(canSend ? Color.accentColor : Color(.systemGray4))
-                        .scaleEffect(sendButtonPressed ? 0.8 : 1.0)
-                        .animation(.spring(response: 0.25, dampingFraction: 0.5), value: sendButtonPressed)
+                    let tint = canSend ? Color.accentColor : Color(.systemGray4)
+                    ZStack {
+                        if #available(iOS 26.0, *) {
+                            Circle()
+                                .glassEffect(.regular.tint(tint).interactive(), in: .circle)
+                        } else {
+                            Circle()
+                                .fill(tint)
+                        }
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+                    .frame(width: 40, height: 40)
+                    .scaleEffect(sendButtonPressed ? 0.86 : 1.0)
+                    .animation(.spring(response: 0.25, dampingFraction: 0.5), value: sendButtonPressed)
                 }
                 .disabled(!canSend)
             }
@@ -766,3 +797,15 @@ private struct BubbleShape: Shape {
         return path
     }
 }
+
+#if DEBUG
+#Preview("Add Meal") {
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: FoodEntry.self, configurations: config)
+
+    return NavigationStack {
+        AddFoodView()
+    }
+    .modelContainer(container)
+}
+#endif

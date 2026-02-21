@@ -72,7 +72,8 @@ struct FoodLogView: View {
                 // Toast overlay
                 if let message = toastMessage {
                     toastView(message)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .zIndex(2)
                 }
             }
             .navigationTitle("Nutritious")
@@ -88,9 +89,11 @@ struct FoodLogView: View {
                     Button {
                         showSettings = true
                     } label: {
-                        Image(systemName: "gearshape.fill")
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 17, weight: .semibold))
                             .symbolRenderingMode(.hierarchical)
                     }
+                    .liquidGlassButtonStyle()
                 }
             }
             .sheet(isPresented: $showSettings) {
@@ -99,6 +102,7 @@ struct FoodLogView: View {
                         .toolbar {
                             ToolbarItem(placement: .confirmationAction) {
                                 Button("Done") { showSettings = false }
+                                    .liquidGlassButtonStyle()
                             }
                         }
                 }
@@ -221,28 +225,22 @@ struct FoodLogView: View {
             )
         }
         .padding(.horizontal, 16)
+        .padding(.vertical, 2)
     }
 
     // MARK: - FABs
 
     private var fabStack: some View {
         VStack(spacing: 12) {
-            Button {
-                impactLight.impactOccurred()
-                Task { await logCoffee() }
-            } label: {
-                ZStack {
-                    Circle()
-                        .fill(.regularMaterial)
-                        .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 4)
-                    Image(systemName: "cup.and.saucer.fill")
-                        .font(.title3.weight(.semibold))
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(.brown)
+            glassFabButton(
+                icon: "cup.and.saucer.fill",
+                tint: .brown,
+                size: 44,
+                action: {
+                    impactLight.impactOccurred()
+                    Task { await logCoffee() }
                 }
-                .frame(width: 48, height: 48)
-            }
-            .buttonStyle(BounceButtonStyle())
+            )
             .contextMenu {
                 ForEach(CoffeeVariant.allCases, id: \.displayName) { variant in
                     Button {
@@ -256,22 +254,15 @@ struct FoodLogView: View {
             .opacity(fabsVisible ? 1 : 0)
             .offset(y: fabsVisible ? 0 : 20)
 
-            Button {
-                impactLight.impactOccurred()
-                Task { await logWater() }
-            } label: {
-                ZStack {
-                    Circle()
-                        .fill(.regularMaterial)
-                        .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 4)
-                    Image(systemName: "drop.fill")
-                        .font(.title3.weight(.semibold))
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(.cyan)
+            glassFabButton(
+                icon: "drop.fill",
+                tint: .cyan,
+                size: 44,
+                action: {
+                    impactLight.impactOccurred()
+                    Task { await logWater() }
                 }
-                .frame(width: 48, height: 48)
-            }
-            .buttonStyle(BounceButtonStyle())
+            )
             .opacity(fabsVisible ? 1 : 0)
             .offset(y: fabsVisible ? 0 : 20)
 
@@ -279,15 +270,12 @@ struct FoodLogView: View {
                 impactLight.impactOccurred()
                 showAddFood = true
             } label: {
-                ZStack {
-                    Circle()
-                        .fill(Color.accentColor.gradient)
-                        .shadow(color: Color.accentColor.opacity(0.35), radius: 12, x: 0, y: 6)
-                    Image(systemName: "plus")
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(.white)
-                }
-                .frame(width: 60, height: 60)
+                glassIconView(
+                    icon: "plus",
+                    tint: Color.accentColor,
+                    size: 60,
+                    showShadow: true
+                )
             }
             .buttonStyle(BounceButtonStyle())
             .opacity(fabsVisible ? 1 : 0)
@@ -297,21 +285,79 @@ struct FoodLogView: View {
         .padding(.bottom, 20)
     }
 
+    // MARK: - Floating action button
+
+    @ViewBuilder
+    private func glassFabButton(icon: String, tint: Color, size: CGFloat, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            glassIconView(icon: icon, tint: tint, size: size, showShadow: false)
+        }
+        .buttonStyle(BounceButtonStyle())
+    }
+
+    @ViewBuilder
+    private func glassIconView(icon: String, tint: Color, size: CGFloat, showShadow: Bool) -> some View {
+        let iconSize = size * 0.45
+
+        if #available(iOS 26.0, *) {
+            ZStack {
+                Circle()
+                    .frame(width: size, height: size)
+                    .glassEffect(.regular.interactive(), in: .circle)
+                    .shadow(color: showShadow ? Color.black.opacity(0.18) : .clear, radius: 12, x: 0, y: 6)
+                Image(systemName: icon)
+                    .font(.system(size: iconSize, weight: .semibold))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.primary)
+            }
+        } else {
+            ZStack {
+                Circle()
+                    .frame(width: size, height: size)
+                    .background(.thinMaterial, in: Circle())
+                    .overlay(
+                        Circle()
+                            .strokeBorder(Color.primary.opacity(0.18), lineWidth: 1)
+                    )
+                    .shadow(color: showShadow ? Color.black.opacity(0.18) : .clear, radius: 12, x: 0, y: 6)
+                Image(systemName: icon)
+                    .font(.system(size: iconSize, weight: .semibold))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.primary)
+            }
+        }
+    }
+
     // MARK: - Toast
 
     private func toastView(_ message: String) -> some View {
         VStack {
+            toastContent(message: message)
+                .padding(.top, 12)
             Spacer()
-            Text(message)
-                .font(.subheadline.weight(.medium))
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .background(.regularMaterial, in: Capsule())
-                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
-                .padding(.bottom, 100)
         }
         .frame(maxWidth: .infinity)
+        .padding(.horizontal, 16)
         .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private func toastContent(message: String) -> some View {
+        let base = Text(message)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+
+        if #available(iOS 26.0, *) {
+            base
+                .glassEffect(.regular, in: .rect(cornerRadius: 14))
+                .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 6)
+        } else {
+            base
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+                .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 6)
+        }
     }
 
     private func showToast(_ message: String) {
@@ -461,7 +507,7 @@ private struct SummaryCard: View {
                 .foregroundStyle(.secondary)
         }
         .frame(width: 68, height: 80)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .cardSurface(cornerRadius: 14, background: Color(.secondarySystemGroupedBackground), strokeOpacity: 0.08, shadowOpacity: 0.02)
     }
 }
 
@@ -550,15 +596,15 @@ private struct MacroPill: View {
     var body: some View {
         HStack(spacing: 3) {
             Image(systemName: icon)
-                .font(.system(size: 8, weight: .semibold))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(color)
             Text(value)
                 .font(.caption2.weight(.semibold).monospacedDigit())
                 .foregroundStyle(.primary)
         }
         .padding(.horizontal, 7)
-        .padding(.vertical, 3)
-        .background(color.opacity(0.1), in: Capsule())
+        .padding(.vertical, 4)
+        .pillSurface(background: color.opacity(0.16))
     }
 }
 
@@ -636,3 +682,54 @@ private struct BounceButtonStyle: ButtonStyle {
             .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
+
+#if DEBUG
+#Preview("Food Log") {
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: FoodEntry.self, configurations: config)
+    let context = container.mainContext
+
+    var nutrients = NutrientData()
+    nutrients.calories = 620
+    nutrients.protein = 38
+    nutrients.carbohydrates = 64
+    nutrients.totalFat = 22
+    nutrients.fiber = 8
+    nutrients.sugar = 10
+
+    let foods = [
+        LoggedFood(
+            name: "Chicken Bowl",
+            matchedDescription: "Grilled chicken, rice, salsa",
+            grams: 420,
+            calories: 520,
+            protein: 34,
+            carbs: 58,
+            fat: 16,
+            source: "estimate"
+        ),
+        LoggedFood(
+            name: "Avocado",
+            matchedDescription: "Half avocado",
+            grams: 75,
+            calories: 100,
+            protein: 2,
+            carbs: 6,
+            fat: 9,
+            source: "estimate"
+        )
+    ]
+
+    let entry = FoodEntry(
+        timestamp: Date().addingTimeInterval(-3600),
+        mealDescription: "Lunch",
+        nutrients: nutrients,
+        foods: foods
+    )
+
+    context.insert(entry)
+
+    return FoodLogView(deepLinkAddFood: .constant(false))
+        .modelContainer(container)
+}
+#endif

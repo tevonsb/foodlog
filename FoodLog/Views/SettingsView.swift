@@ -30,6 +30,9 @@ struct SettingsView: View {
                     .textContentType(.password)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
+                    .textFieldStyle(.plain)
+                    .padding(.vertical, 6)
+                    .liquidGlassInputStyle(cornerRadius: 12, tint: Color.accentColor.opacity(0.1))
 
                 if !apiKey.isEmpty {
                     Button("Save Key") {
@@ -37,11 +40,13 @@ struct SettingsView: View {
                         hasKey = true
                         apiKey = ""
                     }
+                    .liquidGlassButtonStyle(prominent: true)
                 } else if hasKey {
                     Button("Remove Key", role: .destructive) {
                         KeychainService.deleteAPIKey()
                         hasKey = false
                     }
+                    .liquidGlassButtonStyle()
                 }
             } footer: {
                 Text("Your API key is stored securely in the iOS Keychain. Get a key from [console.anthropic.com](https://console.anthropic.com).")

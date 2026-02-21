@@ -105,124 +105,108 @@ struct MediumWidgetView: View {
     let entry: NutrientsEntry
 
     var body: some View {
-        VStack(spacing: 6) {
-            // Row 1: Calories, Protein, Fiber
-            HStack(spacing: 8) {
-                MediumStat(
-                    icon: "flame.fill",
-                    value: "\(Int(entry.nutrients.calories))",
-                    label: "Cal",
-                    color: .orange
-                )
-                MediumStat(
-                    icon: "p.circle.fill",
-                    value: "\(Int(entry.nutrients.protein))g",
-                    label: "Protein",
-                    color: .blue
-                )
-                MediumStat(
-                    icon: "leaf.fill",
-                    value: "\(Int(entry.nutrients.fiber))g",
-                    label: "Fiber",
-                    color: .green
-                )
-            }
+        HStack(spacing: 12) {
+            // Left side: stats
+            VStack(alignment: .leading, spacing: 10) {
+                // Row 1: Cal, Protein, Fiber
+                HStack(spacing: 14) {
+                    InlineStat(icon: "flame.fill", value: "\(Int(entry.nutrients.calories))", label: "Cal", color: .orange)
+                    InlineStat(icon: "p.circle.fill", value: "\(Int(entry.nutrients.protein))g", label: "Protein", color: .blue)
+                    InlineStat(icon: "leaf.fill", value: "\(Int(entry.nutrients.fiber))g", label: "Fiber", color: .green)
+                }
 
-            // Row 2: Water, Coffee, Add
-            HStack(spacing: 8) {
+                // Row 2: Water, Coffee
+                HStack(spacing: 14) {
+                    InlineStat(icon: "drop.fill", value: "\(Int(entry.nutrients.waterOz))oz", label: "Water", color: .cyan)
+                    InlineStat(icon: "cup.and.saucer.fill", value: "\(entry.nutrients.coffees)", label: "Coffee", color: .brown)
+                }
+
+                // Row 3: Secondary macros
+                HStack(spacing: 12) {
+                    BottomMacro(value: "\(Int(entry.nutrients.sugar))g", label: "Sugar")
+                    BottomMacro(value: "\(Int(entry.nutrients.fat))g", label: "Fat")
+                    BottomMacro(value: "\(Int(entry.nutrients.carbs))g", label: "Carbs")
+                    BottomMacro(value: "\(Int(entry.nutrients.cholesterol))mg", label: "Chol")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Right side: round action buttons
+            VStack(spacing: 8) {
                 Button(intent: LogWaterIntent()) {
-                    MediumStat(
-                        icon: "drop.fill",
-                        value: "\(Int(entry.nutrients.waterOz))oz",
-                        label: "Water",
-                        color: .cyan
-                    )
+                    RoundBtn(icon: "drop.fill", color: .cyan)
                 }
                 .buttonStyle(.plain)
 
                 Button(intent: LogCoffeeIntent()) {
-                    MediumStat(
-                        icon: "cup.and.saucer.fill",
-                        value: "\(entry.nutrients.coffees)",
-                        label: "Coffee",
-                        color: .brown
-                    )
+                    RoundBtn(icon: "cup.and.saucer.fill", color: .brown)
                 }
                 .buttonStyle(.plain)
 
                 Link(destination: URL(string: "nutritiousai://add-food")!) {
-                    VStack(spacing: 3) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(Color.accentColor)
-                        Text("Log")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.tertiary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(maxHeight: .infinity)
-                    .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+                    RoundBtn(icon: "plus", color: .accentColor)
                 }
-            }
-
-            // Bottom bar: secondary macros
-            HStack(spacing: 0) {
-                BottomStat(value: "\(Int(entry.nutrients.carbs))g", label: "Carbs")
-                Spacer(minLength: 0)
-                BottomStat(value: "\(Int(entry.nutrients.fat))g", label: "Fat")
-                Spacer(minLength: 0)
-                BottomStat(value: "\(Int(entry.nutrients.sugar))g", label: "Sugar")
-                Spacer(minLength: 0)
-                BottomStat(value: "\(Int(entry.nutrients.sodium))mg", label: "Na")
-                Spacer(minLength: 0)
-                BottomStat(value: "\(Int(entry.nutrients.cholesterol))mg", label: "Chol")
-                Spacer(minLength: 0)
-                BottomStat(value: "\(Int(entry.nutrients.saturatedFat))g", label: "Sat Fat")
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
         .containerBackground(.fill.tertiary, for: .widget)
     }
 }
 
-private struct MediumStat: View {
+private struct InlineStat: View {
     let icon: String
     let value: String
     let label: String
     let color: Color
 
     var body: some View {
-        VStack(spacing: 3) {
+        HStack(spacing: 4) {
             Image(systemName: icon)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(color)
             Text(value)
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-                .minimumScaleFactor(0.7)
+                .font(.system(size: 15, weight: .bold, design: .rounded))
             Text(label)
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(.tertiary)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
     }
 }
 
-private struct BottomStat: View {
+private struct RoundBtn: View {
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        if #available(iOS 26.0, *) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 36, height: 36)
+                .glassEffect(.regular.tint(color), in: .circle)
+        } else {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 36, height: 36)
+                .background(color, in: Circle())
+        }
+    }
+}
+
+private struct BottomMacro: View {
     let value: String
     let label: String
 
     var body: some View {
-        VStack(spacing: 1) {
+        HStack(spacing: 2) {
             Text(value)
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .minimumScaleFactor(0.6)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
             Text(label)
-                .font(.system(size: 8, weight: .medium))
-                .foregroundStyle(.tertiary)
+                .font(.system(size: 11, weight: .regular))
+                .foregroundStyle(.secondary)
         }
     }
 }
