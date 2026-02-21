@@ -4,6 +4,8 @@ import UIKit
 import WidgetKit
 
 struct AddFoodView: View {
+    var editingEntry: FoodEntry?
+
     @Environment(\.modelContext) private var modelContext
 
     // Input state
@@ -42,7 +44,7 @@ struct AddFoodView: View {
             }
             inputBar
         }
-        .navigationTitle("Log Meal")
+        .navigationTitle(editingEntry != nil ? "Edit Meal" : "Log Meal")
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(isPresented: $showCamera) {
             CameraView(
@@ -59,6 +61,21 @@ struct AddFoodView: View {
             if let barcode = scannedBarcode {
                 scannedBarcode = nil
                 Task { await processBarcode(barcode) }
+            }
+        }
+        .onAppear {
+            if let editingEntry, activeEntry == nil {
+                activeEntry = editingEntry
+                sessionEntries = [editingEntry]
+
+                let foodSummary = editingEntry.foods.map { food in
+                    "\(food.name) — \(Int(food.grams))g, \(Int(food.calories)) kcal"
+                }.joined(separator: "\n")
+
+                conversation.append(.agentMessage(
+                    id: UUID(),
+                    text: "\(editingEntry.mealDescription)\n\(foodSummary)"
+                ))
             }
         }
     }
@@ -126,7 +143,7 @@ struct AddFoodView: View {
     @ViewBuilder
     private func conversationItemView(_ item: ConversationItem) -> some View {
         switch item {
-        case .userMessage(let id, let text, let imageData):
+        case .userMessage(_, let text, let imageData):
             VStack(alignment: .trailing, spacing: 8) {
                 if let imgData = imageData, let uiImage = UIImage(data: imgData) {
                     Image(uiImage: uiImage)
@@ -148,7 +165,7 @@ struct AddFoodView: View {
             .padding(.horizontal)
             .transition(.move(edge: .trailing).combined(with: .opacity))
 
-        case .agentProgress(let id, let items):
+        case .agentProgress(_, let items):
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(items) { item in
                     HStack(spacing: 8) {
@@ -169,7 +186,7 @@ struct AddFoodView: View {
             .padding(.horizontal)
             .transition(.opacity)
 
-        case .agentMessage(let id, let text):
+        case .agentMessage(_, let text):
             Text(text)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -233,52 +250,61 @@ struct AddFoodView: View {
         .background(Color(.systemGroupedBackground))
     }
 
+    @ViewBuilder
     private func pinnedMealCard(for entry: FoodEntry) -> some View {
-        NavigationLink {
-            MealDetailView(entry: entry)
-        } label: {
-            HStack(spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(entry.mealDescription)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                    HStack(spacing: 8) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "flame.fill")
-                                .font(.system(size: 9))
-                                .foregroundStyle(.orange)
-                            Text("\(Int(entry.nutrients.calories ?? 0))")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                        }
-                        HStack(spacing: 4) {
-                            Image(systemName: "circle.fill")
-                                .font(.system(size: 6))
-                                .foregroundStyle(.blue)
-                            Text("\(Int(entry.nutrients.protein ?? 0))g")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                        }
+        let cardContent = HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.mealDescription)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                HStack(spacing: 8) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "flame.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.orange)
+                        Text("\(Int(entry.nutrients.calories ?? 0))")
+                            .font(.caption)
+                            .fontWeight(.medium)
                     }
-                    .foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Image(systemName: "circle.fill")
+                            .font(.system(size: 6))
+                            .foregroundStyle(.blue)
+                        Text("\(Int(entry.nutrients.protein ?? 0))g")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                    }
                 }
-                Spacer(minLength: 8)
+                .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 8)
+            if editingEntry == nil {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.tertiary)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(Color(.systemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(Color(.separator), lineWidth: 0.5)
-            )
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Color(.separator), lineWidth: 0.5)
+        )
+
+        if editingEntry == nil {
+            NavigationLink {
+                MealDetailView(entry: entry)
+            } label: {
+                cardContent
+            }
+            .buttonStyle(.plain)
+        } else {
+            cardContent
+        }
     }
 
     // MARK: - Input bar
