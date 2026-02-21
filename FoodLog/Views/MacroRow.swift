@@ -8,12 +8,20 @@ struct MacroRow: View {
     var body: some View {
         HStack {
             Text(label)
+                .font(.subheadline)
             Spacer()
             if let value {
                 Text(formatValue(value, unit: unit))
+                    .font(.subheadline.monospacedDigit())
                     .foregroundStyle(.secondary)
+            } else {
+                Text("—")
+                    .font(.subheadline)
+                    .foregroundStyle(.quaternary)
             }
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
     }
 
     private func formatValue(_ value: Double, unit: String) -> String {

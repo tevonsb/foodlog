@@ -52,16 +52,50 @@ struct SmallWidgetView: View {
     let entry: NutrientsEntry
 
     var body: some View {
-        VStack(spacing: 5) {
-            WidgetNutrientRow(label: "Calories", value: entry.nutrients.calories, unit: "", color: .orange)
-            WidgetNutrientRow(label: "Protein", value: entry.nutrients.protein, unit: "g", color: .indigo)
-            WidgetNutrientRow(label: "Fiber", value: entry.nutrients.fiber, unit: "g", color: .green)
-            WidgetNutrientRow(label: "Water", value: entry.nutrients.waterOz, unit: "oz", color: .cyan)
-            WidgetNutrientRow(label: "Coffee", value: Double(entry.nutrients.coffees), unit: "", color: .brown)
+        VStack(alignment: .leading, spacing: 0) {
+            // Calories (hero stat)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("\(Int(entry.nutrients.calories))")
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundStyle(.orange)
+                Text("calories")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.bottom, 8)
+
+            Spacer(minLength: 0)
+
+            // Secondary stats
+            HStack(spacing: 0) {
+                SmallStat(value: "\(Int(entry.nutrients.protein))g", label: "Protein", color: .blue)
+                Spacer(minLength: 0)
+                SmallStat(value: "\(Int(entry.nutrients.fiber))g", label: "Fiber", color: .green)
+                Spacer(minLength: 0)
+                SmallStat(value: "\(Int(entry.nutrients.waterOz))oz", label: "Water", color: .cyan)
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(16)
         .containerBackground(.fill.tertiary, for: .widget)
         .widgetURL(URL(string: "nutritiousai://add-food"))
+    }
+}
+
+private struct SmallStat: View {
+    let value: String
+    let label: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(value)
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundStyle(color)
+            Text(label)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.tertiary)
+        }
     }
 }
 
@@ -71,90 +105,120 @@ struct MediumWidgetView: View {
     let entry: NutrientsEntry
 
     var body: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                NutrientPill(label: "Cal", value: entry.nutrients.calories, unit: "", color: .orange)
-                NutrientPill(label: "Protein", value: entry.nutrients.protein, unit: "g", color: .indigo)
-                NutrientPill(label: "Fiber", value: entry.nutrients.fiber, unit: "g", color: .green)
-            }
-            HStack(spacing: 8) {
-                NutrientPill(label: "Water", value: entry.nutrients.waterOz, unit: "oz", color: .cyan)
-                NutrientPill(label: "Coffee", value: Double(entry.nutrients.coffees), unit: "", color: .brown)
+        HStack(spacing: 12) {
+            // Left: Nutrient stats
+            VStack(alignment: .leading, spacing: 8) {
+                // Stats grid
+                HStack(spacing: 10) {
+                    MediumStat(
+                        icon: "flame.fill",
+                        value: "\(Int(entry.nutrients.calories))",
+                        label: "Cal",
+                        color: .orange
+                    )
+                    MediumStat(
+                        icon: "p.circle.fill",
+                        value: "\(Int(entry.nutrients.protein))g",
+                        label: "Protein",
+                        color: .blue
+                    )
+                    MediumStat(
+                        icon: "leaf.fill",
+                        value: "\(Int(entry.nutrients.fiber))g",
+                        label: "Fiber",
+                        color: .green
+                    )
+                }
 
+                Spacer(minLength: 0)
+
+                // Beverages
+                HStack(spacing: 12) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "drop.fill")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.cyan)
+                        Text("\(Int(entry.nutrients.waterOz))oz")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    }
+                    HStack(spacing: 4) {
+                        Image(systemName: "cup.and.saucer.fill")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.brown)
+                        Text("\(entry.nutrients.coffees)")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    }
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            // Right: Action buttons
+            VStack(spacing: 6) {
                 Button(intent: LogWaterIntent()) {
-                    Image(systemName: "drop.fill")
-                        .font(.title3.bold())
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.cyan)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    ZStack {
+                        Circle()
+                            .fill(.cyan.opacity(0.15))
+                        Image(systemName: "drop.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.cyan)
+                    }
+                    .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
 
                 Button(intent: LogCoffeeIntent()) {
-                    Image(systemName: "cup.and.saucer.fill")
-                        .font(.title3.bold())
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.brown)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    ZStack {
+                        Circle()
+                            .fill(.brown.opacity(0.15))
+                        Image(systemName: "cup.and.saucer.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.brown)
+                    }
+                    .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
 
                 Link(destination: URL(string: "nutritiousai://add-food")!) {
-                    Image(systemName: "plus")
-                        .font(.title3.bold())
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.green)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    ZStack {
+                        Circle()
+                            .fill(Color.accentColor.opacity(0.15))
+                        Image(systemName: "plus")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .frame(width: 44, height: 44)
                 }
             }
         }
-        .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
         .containerBackground(.fill.tertiary, for: .widget)
     }
 }
 
-// MARK: - Helper Views
-
-struct WidgetNutrientRow: View {
+private struct MediumStat: View {
+    let icon: String
+    let value: String
     let label: String
-    let value: Double
-    let unit: String
     let color: Color
 
     var body: some View {
-        HStack(spacing: 4) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(color)
-                .frame(width: 3, height: 12)
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text("\(Int(value))\(unit)")
-                .font(.caption.bold())
-        }
-    }
-}
-
-struct NutrientPill: View {
-    let label: String
-    let value: Double
-    let unit: String
-    let color: Color
-
-    var body: some View {
-        VStack(spacing: 2) {
-            Text("\(Int(value))\(unit)")
-                .font(.subheadline.bold())
+        VStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(color)
+            Text(value)
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .minimumScaleFactor(0.7)
             Text(label)
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.tertiary)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
     }
 }
 
@@ -168,7 +232,7 @@ struct NutrientsWidgetMain: Widget {
         StaticConfiguration(kind: kind, provider: NutrientsProvider()) { entry in
             WidgetEntryView(entry: entry)
         }
-        .configurationDisplayName("Nutritious AI")
+        .configurationDisplayName("Nutritious")
         .description("Track your daily nutrients at a glance.")
         .supportedFamilies([.systemSmall, .systemMedium])
         .contentMarginsDisabled()
