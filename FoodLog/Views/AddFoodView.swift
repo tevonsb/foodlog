@@ -5,149 +5,247 @@ import WidgetKit
 
 struct AddFoodView: View {
     @Environment(\.modelContext) private var modelContext
+
+    // Input state
     @State private var mealText = ""
-    @State private var isLogging = false
-    @State private var isAnalyzingImage = false
-    @Namespace private var bubbleNS
-    @State private var errorMessage: String?
     @State private var showCamera = false
     @State private var capturedImageData: Data?
-    @State private var submittedText: String?
-    @State private var submittedImageData: Data?
-    @State private var completedEntry: FoodEntry?
 
+    // Processing state
+    @State private var isLogging = false
+    @State private var progressEvents: [ProgressItem] = []
+    @State private var errorMessage: String?
+
+    // Conversation state
+    @State private var submittedMessages: [ChatBubble] = []
+    @State private var completedEntries: [FoodEntry] = []
+    @State private var activeEntry: FoodEntry?
+    @State private var agentMessage: String?
+
+    // Haptics
     @State private var impactLight = UIImpactFeedbackGenerator(style: .light)
     @State private var notify = UINotificationFeedbackGenerator()
 
-    private var canLog: Bool {
+    private var canSend: Bool {
         (!mealText.isEmpty || capturedImageData != nil) && !isLogging
     }
 
     var body: some View {
         VStack(spacing: 0) {
+            scrollContent
+            inputBar
+        }
+        .navigationTitle("Log Meal")
+        .navigationBarTitleDisplayMode(.inline)
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraView { imageData in
+                capturedImageData = imageData
+                // Auto-submit photo immediately
+                Task { await sendMessage() }
+            }
+        }
+    }
+
+    // MARK: - Scroll content
+
+    private var scrollContent: some View {
+        ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: 16) {
-                    // Photo preview (before sending)
-                    if let imageData = capturedImageData, let uiImage = UIImage(data: imageData) {
-                        ZStack(alignment: .topTrailing) {
-                            Image(uiImage: uiImage)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(maxHeight: 300)
-                                .clipShape(RoundedRectangle(cornerRadius: 16))
-
-                            Button {
-                                capturedImageData = nil
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.title2)
-                                    .symbolRenderingMode(.palette)
-                                    .foregroundStyle(.white, .black.opacity(0.5))
-                            }
-                            .padding(8)
-                        }
-                        .padding(.horizontal)
-                        .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .scale.combined(with: .opacity)))
-                    }
-
-                    // Submitted message bubble (while loading or after completion)
-                    if submittedText != nil || submittedImageData != nil {
-                        VStack(alignment: .trailing, spacing: 8) {
-                            if let imgData = submittedImageData, let uiImage = UIImage(data: imgData) {
-                                Image(uiImage: uiImage)
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(maxHeight: 200)
-                                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                            }
-                            if let text = submittedText, !text.isEmpty {
-                                Text(text)
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 10)
-                                    .background(Color.accentColor)
-                                    .foregroundStyle(.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 18))
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                        .padding(.horizontal)
-                        .matchedGeometryEffect(id: "bubble", in: bubbleNS)
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
-                    }
-
-                    // Loading indicator
-                    if isLogging {
-                        HStack(spacing: 10) {
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(LinearGradient(colors: [.gray.opacity(0.2), .gray.opacity(0.35), .gray.opacity(0.2)], startPoint: .leading, endPoint: .trailing))
-                                .frame(width: 80, height: 12)
-                                .overlay(
-                                    GeometryReader { geo in
-                                        Rectangle()
-                                            .fill(.white.opacity(0.35))
-                                            .frame(width: 30, height: 12)
-                                            .offset(x: isLogging ? geo.size.width : -30)
-                                            .animation(.linear(duration: 1.2).repeatForever(autoreverses: false), value: isLogging)
-                                    }
-                                )
-                            Text("Analyzing your meal…")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal)
-                    }
-
-                    // Result card after completion
-                    if let entry = completedEntry {
-                        NavigationLink {
-                            MealDetailView(entry: entry)
-                        } label: {
-                            MealRow(entry: entry)
-                                .padding(12)
-                                .background(
-                                    LinearGradient(colors: [Color(.secondarySystemBackground), Color(.secondarySystemBackground).opacity(0.8)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                                )
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
-                                .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 6)
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal)
-                        .transition(.scale.combined(with: .opacity))
-                    }
-
-                    // Error message
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                            .padding(.horizontal)
-                    }
-
-                    // Empty state
-                    if capturedImageData == nil && !isLogging && completedEntry == nil && submittedText == nil {
-                        VStack(spacing: 10) {
-                            Image(systemName: "fork.knife.circle.fill")
-                                .font(.system(size: 56, weight: .regular))
-                                .foregroundStyle(Color.accentColor)
-                            Text("Log your next meal")
-                                .font(.headline)
-                            Text("Snap a photo or type a quick description. We'll identify foods and track your nutrition.")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 80)
-                    }
+                    photoPreview
+                    chatBubbles
+                    progressSection
+                    agentMessageView
+                    resultCards
+                    errorView
+                    emptyState
+                    Color.clear.frame(height: 1).id("bottom")
                 }
                 .padding(.top)
-                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: submittedText)
-                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: submittedImageData)
             }
+            .onChange(of: progressEvents.count) {
+                withAnimation { proxy.scrollTo("bottom") }
+            }
+            .onChange(of: completedEntries.count) {
+                withAnimation { proxy.scrollTo("bottom") }
+            }
+        }
+    }
 
-            // Bottom input bar
+    // MARK: - Subviews
+
+    @ViewBuilder
+    private var photoPreview: some View {
+        if let imageData = capturedImageData, let uiImage = UIImage(data: imageData) {
+            ZStack(alignment: .topTrailing) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxHeight: 300)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+
+                Button {
+                    capturedImageData = nil
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title2)
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.white, .black.opacity(0.5))
+                }
+                .padding(8)
+            }
+            .padding(.horizontal)
+            .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .scale.combined(with: .opacity)))
+        }
+    }
+
+    @ViewBuilder
+    private var chatBubbles: some View {
+        ForEach(submittedMessages) { bubble in
+            VStack(alignment: .trailing, spacing: 8) {
+                if let imgData = bubble.imageData, let uiImage = UIImage(data: imgData) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxHeight: 200)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                }
+                if let text = bubble.text, !text.isEmpty {
+                    Text(text)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(Color.accentColor)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.horizontal)
+            .transition(.move(edge: .trailing).combined(with: .opacity))
+        }
+    }
+
+    @ViewBuilder
+    private var progressSection: some View {
+        if !progressEvents.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(progressEvents) { item in
+                    HStack(spacing: 8) {
+                        Image(systemName: item.icon)
+                            .font(.caption)
+                            .foregroundStyle(item.color)
+                            .frame(width: 16)
+                        Text(item.text)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                if isLogging {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                            .frame(width: 16)
+                        Text("Analyzing...")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal)
+            .transition(.opacity)
+        } else if isLogging {
+            HStack(spacing: 6) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Analyzing your meal...")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal)
+        }
+    }
+
+    @ViewBuilder
+    private var agentMessageView: some View {
+        if let msg = agentMessage {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "info.circle.fill")
+                    .foregroundStyle(.orange)
+                Text(msg)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal)
+        }
+    }
+
+    @ViewBuilder
+    private var resultCards: some View {
+        ForEach(0..<completedEntries.count, id: \.self) { index in
+            resultCard(for: completedEntries[index], index: index)
+        }
+    }
+
+    private func resultCard(for entry: FoodEntry, index: Int) -> some View {
+        NavigationLink {
+            MealDetailView(entry: entry)
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                if completedEntries.count > 1 {
+                    Text("Meal \(index + 1)")
+                        .font(.caption)
+                        .foregroundStyle(Color.accentColor)
+                        .fontWeight(.semibold)
+                }
+                MealRow(entry: entry)
+            }
+            .padding(12)
+            .background(
+                LinearGradient(colors: [Color(.secondarySystemBackground), Color(.secondarySystemBackground).opacity(0.8)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 6)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal)
+        .transition(.scale.combined(with: .opacity))
+    }
+
+    @ViewBuilder
+    private var errorView: some View {
+        if let errorMessage {
+            Text(errorMessage)
+                .font(.caption)
+                .foregroundStyle(.red)
+                .padding(.horizontal)
+        }
+    }
+
+    @ViewBuilder
+    private var emptyState: some View {
+        if capturedImageData == nil && !isLogging && completedEntries.isEmpty && submittedMessages.isEmpty {
+            VStack(spacing: 10) {
+                Image(systemName: "fork.knife.circle.fill")
+                    .font(.system(size: 56, weight: .regular))
+                    .foregroundStyle(Color.accentColor)
+                Text("Log your next meal")
+                    .font(.headline)
+                Text("Snap a photo or type a quick description. We'll identify foods and track your nutrition.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 80)
+        }
+    }
+
+    private var inputBar: some View {
+        VStack(spacing: 0) {
             Divider()
             HStack(spacing: 12) {
                 Button {
@@ -162,7 +260,7 @@ struct AddFoodView: View {
                         .contentShape(Rectangle())
                 }
 
-                TextField("Describe your meal...", text: $mealText, axis: .vertical)
+                TextField(activeEntry != nil ? "Edit this meal..." : "Describe your meal...", text: $mealText, axis: .vertical)
                     .lineLimit(1...4)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
@@ -172,161 +270,230 @@ struct AddFoodView: View {
 
                 Button {
                     impactLight.impactOccurred()
-                    Task { await logMeal() }
+                    Task { await sendMessage() }
                 } label: {
                     Image(systemName: "paperplane.fill")
                         .font(.title3.weight(.semibold))
                         .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(canLog ? Color.accentColor : Color.secondary)
+                        .foregroundStyle(canSend ? Color.accentColor : Color.secondary)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
-                        .scaleEffect(canLog ? 1.0 : 0.98)
+                        .scaleEffect(canSend ? 1.0 : 0.98)
                 }
-                .disabled(!canLog)
+                .disabled(!canSend)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(.bar)
         }
-        .navigationTitle("Log Meal")
-        .navigationBarTitleDisplayMode(.inline)
-        .fullScreenCover(isPresented: $showCamera) {
-            CameraView { imageData in
-                capturedImageData = imageData
-                submittedImageData = imageData
-                submittedText = nil
-                isLogging = true
-                errorMessage = nil
-                isAnalyzingImage = true
-                Task { await logMeal() }
-            }
-            .onAppear {
-                isAnalyzingImage = false
-            }
-        }
     }
 
-    private func logMeal() async {
+    // MARK: - Models
+
+    private struct ChatBubble: Identifiable {
+        let id = UUID()
+        let text: String?
+        let imageData: Data?
+    }
+
+    private struct ProgressItem: Identifiable {
+        let id = UUID()
+        let icon: String
+        let text: String
+        let color: Color
+    }
+
+    // MARK: - Send message (routes to create or adjust)
+
+    private func sendMessage() async {
         let currentText = mealText
         let currentImageData = capturedImageData
 
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
-            // Clear input immediately, show as sent bubble
-            mealText = ""
-            if let img = currentImageData {
-                // Already set by camera flow to show as bubble; ensure state consistent
-                submittedImageData = img
-                submittedText = nil
-            } else {
-                submittedText = currentText
-                submittedImageData = nil
-            }
-            capturedImageData = nil
-            completedEntry = nil
-            isLogging = true
-            errorMessage = nil
-        }
+        mealText = ""
+        capturedImageData = nil
+        submittedMessages.append(ChatBubble(text: currentText.isEmpty ? nil : currentText, imageData: currentImageData))
+        progressEvents = []
+        isLogging = true
+        errorMessage = nil
+        agentMessage = nil
 
-        do {
-            let analysis: AgenticMealAnalysis
-            if let imageData = currentImageData {
-                analysis = try await ClaudeService.identifyFoods(imageData: imageData)
-            } else {
-                analysis = try await ClaudeService.identifyFoods(description: currentText)
-            }
-
-            guard !analysis.foods.isEmpty else {
-                errorMessage = "Could not identify any foods."
-                notify.notificationOccurred(.error)
-                mealText = currentText
-                capturedImageData = currentImageData
-                submittedText = nil
-                submittedImageData = nil
-                isLogging = false
-                return
-            }
-
-            let mealDate = parseMealTime(analysis.mealTime) ?? Date()
-
-            let db = FNDDSDatabase.shared
-            var nutrientsList: [NutrientData] = []
-            var loggedFoods: [LoggedFood] = []
-
-            for food in analysis.foods {
-                let nutrients: NutrientData
-                if food.source == "database", let foodCode = food.foodCode,
-                   let dbNutrients = db.getNutrients(foodCode: foodCode, grams: food.grams) {
-                    nutrients = dbNutrients
-                } else {
-                    nutrients = makeMacroOnlyNutrients(food)
-                }
-                nutrientsList.append(nutrients)
-
-                loggedFoods.append(LoggedFood(
-                    name: food.foodName,
-                    matchedDescription: food.matchedDescription ?? "Estimated",
-                    grams: food.grams,
-                    calories: food.calories,
-                    protein: food.protein,
-                    carbs: food.carbs,
-                    fat: food.fat,
-                    source: food.source
-                ))
-            }
-
-            let totalNutrients = NutrientData.combined(nutrientsList)
-            let mealID = UUID()
-            let sampleUUIDs = try await HealthKitService.shared.saveMeal(
-                nutrients: totalNutrients,
-                mealID: mealID,
-                date: mealDate
-            )
-
-            let entry = FoodEntry(
-                timestamp: mealDate,
-                mealDescription: currentText.isEmpty ? "Meal from photo" : currentText,
-                photoData: currentImageData,
-                nutrients: totalNutrients,
-                foods: loggedFoods,
-                healthKitSampleUUIDs: sampleUUIDs
-            )
-            modelContext.insert(entry)
-            try modelContext.save()
-
-            completedEntry = entry
-            notify.notificationOccurred(.success)
-            syncWidgetData()
-        } catch {
-            errorMessage = error.localizedDescription
-            notify.notificationOccurred(.error)
-            mealText = currentText
-            capturedImageData = currentImageData
-            submittedText = nil
-            submittedImageData = nil
+        if let activeEntry {
+            await adjustExistingEntry(entry: activeEntry, text: currentText)
+        } else {
+            await createNewEntries(text: currentText, imageData: currentImageData)
         }
 
         isLogging = false
     }
 
-    private func makeMacroOnlyNutrients(_ food: AgenticFoodResult) -> NutrientData {
-        var n = NutrientData()
-        n.calories = food.calories
-        n.protein = food.protein
-        n.totalFat = food.fat
-        n.carbohydrates = food.carbs
-        n.fiber = food.fiber
-        n.sugar = food.sugar
-        return n
+    // MARK: - Create new entries
+
+    private func createNewEntries(text: String, imageData: Data?) async {
+        let stream: AsyncStream<AgentEvent>
+        if let imageData {
+            stream = ClaudeService.identifyFoods(imageData: imageData)
+        } else {
+            stream = ClaudeService.identifyFoods(description: text)
+        }
+
+        for await event in stream {
+            handleProgressEvent(event)
+            if case .completed(let meals) = event {
+                await processCompletedMeals(meals, text: text, imageData: imageData)
+                notify.notificationOccurred(.success)
+            }
+            if case .failed(let error) = event {
+                errorMessage = error.localizedDescription
+                notify.notificationOccurred(.error)
+            }
+        }
     }
 
-    private func parseMealTime(_ mealTimeString: String?) -> Date? {
-        guard let mealTimeString else { return nil }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let parsed = formatter.date(from: mealTimeString) { return parsed }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: mealTimeString)
+    private func handleProgressEvent(_ event: AgentEvent) {
+        switch event {
+        case .searching(let query):
+            progressEvents.append(ProgressItem(
+                icon: "magnifyingglass",
+                text: "Searching for \(query)...",
+                color: .secondary
+            ))
+        case .searchResult(let query, let count):
+            if let idx = progressEvents.lastIndex(where: { $0.text.contains(query) }) {
+                progressEvents[idx] = ProgressItem(
+                    icon: count > 0 ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
+                    text: count > 0 ? "Found \(count) matches for \(query)" : "No matches for \(query)",
+                    color: count > 0 ? .green : .orange
+                )
+            }
+        case .estimating(let foodName):
+            progressEvents.append(ProgressItem(
+                icon: "brain",
+                text: "Estimating nutrition for \(foodName)",
+                color: .purple
+            ))
+        case .thinking, .completed, .failed:
+            break
+        }
     }
+
+    // MARK: - Process completed meals into FoodEntries
+
+    private func processCompletedMeals(_ meals: [AgenticMealResult], text: String, imageData: Data?) async {
+        guard !meals.isEmpty, meals.contains(where: { !$0.foods.isEmpty }) else {
+            let msg = meals.first?.message
+            if let msg, !msg.isEmpty {
+                agentMessage = msg
+            } else {
+                errorMessage = "Could not identify any foods."
+            }
+            return
+        }
+
+        let messages = meals.compactMap(\.message).filter { !$0.isEmpty }
+        if !messages.isEmpty {
+            agentMessage = messages.joined(separator: " ")
+        }
+
+        for (index, meal) in meals.enumerated() {
+            guard !meal.foods.isEmpty else { continue }
+
+            let processed = MealProcessing.processAnalysis(meal, fallbackDate: Date())
+            let mealID = UUID()
+
+            do {
+                let sampleUUIDs = try await HealthKitService.shared.saveMeal(
+                    nutrients: processed.nutrients,
+                    mealID: mealID,
+                    date: processed.mealDate
+                )
+
+                let description: String
+                if let label = meal.mealLabel {
+                    description = label
+                } else if !text.isEmpty {
+                    description = text
+                } else {
+                    description = "Meal from photo"
+                }
+
+                let entry = FoodEntry(
+                    timestamp: processed.mealDate,
+                    mealDescription: description,
+                    photoData: index == 0 ? imageData : nil,
+                    nutrients: processed.nutrients,
+                    foods: processed.foods,
+                    healthKitSampleUUIDs: sampleUUIDs
+                )
+                modelContext.insert(entry)
+                try modelContext.save()
+
+                completedEntries.append(entry)
+                activeEntry = entry
+                syncWidgetData()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    // MARK: - Adjust existing entry
+
+    private func adjustExistingEntry(entry: FoodEntry, text: String) async {
+        let stream = ClaudeService.adjustMeal(currentFoods: entry.foods, adjustment: text)
+
+        for await event in stream {
+            handleProgressEvent(event)
+            if case .completed(let meals) = event {
+                await applyAdjustment(meals: meals, entry: entry)
+                notify.notificationOccurred(.success)
+            }
+            if case .failed(let error) = event {
+                errorMessage = error.localizedDescription
+                notify.notificationOccurred(.error)
+            }
+        }
+    }
+
+    private func applyAdjustment(meals: [AgenticMealResult], entry: FoodEntry) async {
+        guard let meal = meals.first, !meal.foods.isEmpty else {
+            errorMessage = "Could not process the adjustment."
+            return
+        }
+
+        if let msg = meal.message, !msg.isEmpty {
+            agentMessage = msg
+        }
+
+        let processed = MealProcessing.processAnalysis(meal, fallbackDate: entry.timestamp)
+
+        do {
+            if !entry.healthKitSampleUUIDs.isEmpty {
+                try await HealthKitService.shared.deleteMeal(sampleUUIDs: entry.healthKitSampleUUIDs)
+            }
+
+            let mealID = UUID()
+            let newSampleUUIDs = try await HealthKitService.shared.saveMeal(
+                nutrients: processed.nutrients,
+                mealID: mealID,
+                date: processed.mealDate
+            )
+
+            entry.foods = processed.foods
+            entry.nutrients = processed.nutrients
+            entry.healthKitSampleUUIDs = newSampleUUIDs
+            entry.timestamp = processed.mealDate
+            try modelContext.save()
+
+            if let idx = completedEntries.firstIndex(where: { $0.id == entry.id }) {
+                completedEntries[idx] = entry
+            }
+            syncWidgetData()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    // MARK: - Helpers
 
     private func syncWidgetData() {
         let entries = (try? modelContext.fetch(FetchDescriptor<FoodEntry>())) ?? []

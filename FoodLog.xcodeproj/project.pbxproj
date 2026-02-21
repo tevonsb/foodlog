@@ -32,6 +32,7 @@
 		F6A7B809D0E1F2A1B2C3D4E5 /* BeverageIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B809D0E1F2A1B2C3 /* BeverageIntents.swift */; };
 		FCC338EE77EF52A9BA356807 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90325F2D5E6AE6F27877B050 /* SettingsView.swift */; };
 		FD205A2F7FCE7635B1FCC43F /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 546057AAB58C8476D2470618 /* KeychainService.swift */; };
+		D3FB5E0881A4A13774C1529E /* MealProcessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = E59F533F3674500FFC205376 /* MealProcessing.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -85,6 +86,7 @@
 		E481DB6AA55DDB788F2549E4 /* MacroRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacroRow.swift; sourceTree = "<group>"; };
 		EABD568EEBF11F173DDE2099 /* ClaudeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeService.swift; sourceTree = "<group>"; };
 		FB443A8CAB3DD8EA56767CD6 /* NutrientData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutrientData.swift; sourceTree = "<group>"; };
+		E59F533F3674500FFC205376 /* MealProcessing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealProcessing.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -170,6 +172,7 @@
 				27EBB0FC405DE30940B0CCC6 /* FNDDSDatabase.swift */,
 				BFDA4F623D7B73A83EF4E492 /* HealthKitService.swift */,
 				546057AAB58C8476D2470618 /* KeychainService.swift */,
+				E59F533F3674500FFC205376 /* MealProcessing.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -310,6 +313,7 @@
 				7B21B0B63A5A96F6EB28EC06 /* IdentifiedFood.swift in Sources */,
 				FD205A2F7FCE7635B1FCC43F /* KeychainService.swift in Sources */,
 				5C34436B5AA2181928474FD9 /* MacroRow.swift in Sources */,
+				D3FB5E0881A4A13774C1529E /* MealProcessing.swift in Sources */,
 				902228764AB2FF564E0B3F1C /* MealDetailView.swift in Sources */,
 				F69B69B1956835132371C36C /* NutrientData.swift in Sources */,
 				FCC338EE77EF52A9BA356807 /* SettingsView.swift in Sources */,

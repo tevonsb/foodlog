@@ -8,6 +8,8 @@ struct MealDetailView: View {
     @State private var adjustmentText = ""
     @State private var isAdjusting = false
     @State private var errorMessage: String?
+    @State private var adjustmentProgress: [ProgressItem] = []
+    @State private var adjustmentMessage: String?
 
     var body: some View {
         List {
@@ -49,6 +51,33 @@ struct MealDetailView: View {
                         }
                     }
                     .disabled(adjustmentText.isEmpty || isAdjusting)
+                }
+
+                // Live progress during adjustment
+                if !adjustmentProgress.isEmpty {
+                    ForEach(adjustmentProgress) { item in
+                        HStack(spacing: 8) {
+                            Image(systemName: item.icon)
+                                .font(.caption)
+                                .foregroundStyle(item.color)
+                                .frame(width: 16)
+                            Text(item.text)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                // Agent message
+                if let msg = adjustmentMessage {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "info.circle.fill")
+                            .foregroundStyle(.orange)
+                            .font(.caption)
+                        Text(msg)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 if let errorMessage {
@@ -111,96 +140,94 @@ struct MealDetailView: View {
         .navigationTitle("Meal Details")
     }
 
+    // MARK: - Progress item model
+
+    private struct ProgressItem: Identifiable {
+        let id = UUID()
+        let icon: String
+        let text: String
+        let color: Color
+    }
+
     private func adjustMeal() async {
         isAdjusting = true
         errorMessage = nil
+        adjustmentProgress = []
+        adjustmentMessage = nil
 
-        do {
-            let analysis = try await ClaudeService.adjustMeal(
-                currentFoods: entry.foods,
-                adjustment: adjustmentText
-            )
+        let stream = ClaudeService.adjustMeal(currentFoods: entry.foods, adjustment: adjustmentText)
 
-            guard !analysis.foods.isEmpty else {
-                errorMessage = "Could not process the adjustment."
-                isAdjusting = false
-                return
-            }
-
-            // Delete old HealthKit samples
-            if !entry.healthKitSampleUUIDs.isEmpty {
-                try await HealthKitService.shared.deleteMeal(sampleUUIDs: entry.healthKitSampleUUIDs)
-            }
-
-            let db = FNDDSDatabase.shared
-            var nutrientsList: [NutrientData] = []
-            var loggedFoods: [LoggedFood] = []
-
-            for food in analysis.foods {
-                let nutrients: NutrientData
-                if food.source == "database", let foodCode = food.foodCode,
-                   let dbNutrients = db.getNutrients(foodCode: foodCode, grams: food.grams) {
-                    nutrients = dbNutrients
-                } else {
-                    nutrients = makeMacroOnlyNutrients(food)
-                }
-                nutrientsList.append(nutrients)
-
-                loggedFoods.append(LoggedFood(
-                    name: food.foodName,
-                    matchedDescription: food.matchedDescription ?? "Estimated",
-                    grams: food.grams,
-                    calories: food.calories,
-                    protein: food.protein,
-                    carbs: food.carbs,
-                    fat: food.fat,
-                    source: food.source
+        for await event in stream {
+            switch event {
+            case .searching(let query):
+                adjustmentProgress.append(ProgressItem(
+                    icon: "magnifyingglass",
+                    text: "Searching for \(query)...",
+                    color: .secondary
                 ))
+
+            case .searchResult(let query, let count):
+                if let idx = adjustmentProgress.lastIndex(where: { $0.text.contains(query) }) {
+                    adjustmentProgress[idx] = ProgressItem(
+                        icon: count > 0 ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
+                        text: count > 0 ? "Found \(count) matches for \(query)" : "No matches for \(query)",
+                        color: count > 0 ? .green : .orange
+                    )
+                }
+
+            case .estimating(let foodName):
+                adjustmentProgress.append(ProgressItem(
+                    icon: "brain",
+                    text: "Estimating nutrition for \(foodName)",
+                    color: .purple
+                ))
+
+            case .thinking:
+                break
+
+            case .completed(let meals):
+                guard let meal = meals.first, !meal.foods.isEmpty else {
+                    errorMessage = "Could not process the adjustment."
+                    break
+                }
+
+                if let msg = meal.message, !msg.isEmpty {
+                    adjustmentMessage = msg
+                }
+
+                let processed = MealProcessing.processAnalysis(meal, fallbackDate: entry.timestamp)
+
+                do {
+                    // Delete old HealthKit samples
+                    if !entry.healthKitSampleUUIDs.isEmpty {
+                        try await HealthKitService.shared.deleteMeal(sampleUUIDs: entry.healthKitSampleUUIDs)
+                    }
+
+                    // Save new HealthKit samples
+                    let mealID = UUID()
+                    let newSampleUUIDs = try await HealthKitService.shared.saveMeal(
+                        nutrients: processed.nutrients,
+                        mealID: mealID,
+                        date: processed.mealDate
+                    )
+
+                    // Update the entry in-place
+                    entry.foods = processed.foods
+                    entry.nutrients = processed.nutrients
+                    entry.healthKitSampleUUIDs = newSampleUUIDs
+                    entry.timestamp = processed.mealDate
+                    try modelContext.save()
+
+                    adjustmentText = ""
+                } catch {
+                    errorMessage = error.localizedDescription
+                }
+
+            case .failed(let error):
+                errorMessage = error.localizedDescription
             }
-
-            let newNutrients = NutrientData.combined(nutrientsList)
-            var mealDate = entry.timestamp
-            if let mealTimeString = analysis.mealTime {
-                mealDate = parseMealTime(mealTimeString) ?? entry.timestamp
-            }
-
-            let mealID = UUID()
-            let newSampleUUIDs = try await HealthKitService.shared.saveMeal(
-                nutrients: newNutrients,
-                mealID: mealID,
-                date: mealDate
-            )
-
-            entry.foods = loggedFoods
-            entry.nutrients = newNutrients
-            entry.healthKitSampleUUIDs = newSampleUUIDs
-            entry.timestamp = mealDate
-            try modelContext.save()
-
-            adjustmentText = ""
-        } catch {
-            errorMessage = error.localizedDescription
         }
 
         isAdjusting = false
-    }
-
-    private func makeMacroOnlyNutrients(_ food: AgenticFoodResult) -> NutrientData {
-        var n = NutrientData()
-        n.calories = food.calories
-        n.protein = food.protein
-        n.totalFat = food.fat
-        n.carbohydrates = food.carbs
-        n.fiber = food.fiber
-        n.sugar = food.sugar
-        return n
-    }
-
-    private func parseMealTime(_ mealTimeString: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let parsed = formatter.date(from: mealTimeString) { return parsed }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: mealTimeString)
     }
 }

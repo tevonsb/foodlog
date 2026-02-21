@@ -55,14 +55,64 @@ struct AgenticFoodResult: Codable, Sendable {
     }
 }
 
-/// Complete meal analysis from the agentic loop
-struct AgenticMealAnalysis: Codable, Sendable {
-    let foods: [AgenticFoodResult]
+/// A single meal within a multi-meal response
+struct AgenticMealResult: Codable, Sendable {
+    let mealLabel: String?
     let mealTime: String?
+    let foods: [AgenticFoodResult]
+    let message: String?
 
     enum CodingKeys: String, CodingKey {
-        case foods
+        case mealLabel = "meal_label"
         case mealTime = "meal_time"
+        case foods
+        case message
+    }
+
+    init(mealLabel: String? = nil, mealTime: String? = nil, foods: [AgenticFoodResult], message: String? = nil) {
+        self.mealLabel = mealLabel
+        self.mealTime = mealTime
+        self.foods = foods
+        self.message = message
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        mealLabel = try c.decodeIfPresent(String.self, forKey: .mealLabel)
+        mealTime = try c.decodeIfPresent(String.self, forKey: .mealTime)
+        foods = try c.decode([AgenticFoodResult].self, forKey: .foods)
+        message = try c.decodeIfPresent(String.self, forKey: .message)
+    }
+}
+
+/// Complete response from the agentic loop — supports single or multi-meal
+struct AgenticMealAnalysis: Codable, Sendable {
+    let meals: [AgenticMealResult]
+    let foods: [AgenticFoodResult]?
+    let mealTime: String?
+    let message: String?
+
+    /// Resolves to a consistent array of meals regardless of response format.
+    /// If Claude returned the `meals` array, use it. Otherwise wrap flat `foods` as a single meal.
+    var resolvedMeals: [AgenticMealResult] {
+        if !meals.isEmpty { return meals }
+        if let foods, !foods.isEmpty {
+            return [AgenticMealResult(mealTime: mealTime, foods: foods, message: message)]
+        }
+        return []
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case meals, foods, message
+        case mealTime = "meal_time"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        meals = (try? c.decodeIfPresent([AgenticMealResult].self, forKey: .meals)) ?? []
+        foods = try? c.decodeIfPresent([AgenticFoodResult].self, forKey: .foods)
+        mealTime = try? c.decodeIfPresent(String.self, forKey: .mealTime)
+        message = try? c.decodeIfPresent(String.self, forKey: .message)
     }
 }
 
